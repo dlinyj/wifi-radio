@@ -173,9 +173,13 @@ void move_symb_right () {
 
 
 void tunning () {
-//static int tun_disp_position=1; //Позиция символа настройки на экране
-//static int tun_char_position=1; //Текущий символ настройки
-	
+/* 
+ * Напоминание 
+ * tun_disp_position Позиция символа настройки на экране
+ * tun_char_position Текущий символ настройки
+ * Вычисление позиции станции идёт по следующей формуле
+ * sation_pos=(tun_disp_position-1)*5+tun_char_position
+*/
 	clear_scr();
 	home_scr();
 	print_to_scr ("\x1B\x25\x01"); //Разрешение юзверских шрифтов
@@ -198,13 +202,15 @@ void tunning () {
 		break;}
 
 	if(ch == KEY_LEFT) {
-		printw("Left Key pressed\n");
+		//printw("Left Key pressed\n");
 		move_symb_left ();
+		printw("sation_pos=%d ", (tun_disp_position-1)*5+tun_char_position);
 	}
 
 	if(ch == KEY_RIGHT) {
-		printw("Right Key pressed\n");
+		//printw("Right Key pressed\n");
 		move_symb_right();
+		printw("sation_pos=%d ", (tun_disp_position-1)*5+tun_char_position);
 	}
 	refresh();
 	}
@@ -220,10 +226,9 @@ int main() {
  */
 
 	char buf[256];
-	//if (initcomport()<0) 
-	//	return -1;
-	
-	initcomport();
+	if (initcomport()<0) 
+		return -1;
+
 	clear_scr();
 	home_scr();
 /*	
