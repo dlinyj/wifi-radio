@@ -220,63 +220,24 @@ int main() {
  */
 
 	char buf[256];
-	if (initcomport()) <0
-		return -1;
+	//if (initcomport()<0) 
+	//	return -1;
 	
-	get_title(buf,256);
-	//printf ("title %s\n", buf);
-	//print_to_scr (buf);
-	//print_to_scr ("\n");
-	get_name(buf,256);
-	//printf ("name %s\n", buf);
-	get_artist(buf,256);
-	//printf ("artist %s\n", buf);
-	//print_to_scr (buf);
-	
-	tunning () ;
-
-//set_to_position_scr(5, 2);
-
-/*
-//Бегущая палочка реализована
-
-	int i,j;
+	initcomport();
+	clear_scr();
 	home_scr();
-	for (j=1;j<21;j++) {
-		for (i=1;i<6;i++)
-		{
-			reload_char(i);
-			//set_to_position_scr(j, 1);
-			print_to_scr ("\xA0"); //Печать юзверских шрифтов
-			print_to_scr ("\x08"); //Move cursor left 
-			usleep(50000);
-		}
-	if(j!=20) {
-		print_to_scr ("\x08  "); //Move cursor left and space
-		}
-	}
-
-	for (j=20;j>0;j--) {
-		for (i=5;i>0;i--)
-		{
-			reload_char(i);
-			reload_char(i);
-			reload_char(i);
-			//set_to_position_scr(j, 1);
-			print_to_scr ("\xA0"); //Печать юзверских шрифтов
-			print_to_scr ("\x08"); //Move cursor left 
-			usleep(50000);
-		}
-	if(j!=1) {
-		print_to_scr ("\x08  \x08\x08"); //Move cursor left and space
-		}
-	}
-	
-	
-// до сюда
+/*	
+	get_title(buf,256);
+	printf ("title %s\n", buf);
+	print_to_scr (buf);
+	print_to_scr ("\n");
+	get_name(buf,256);
+	printf ("name %s\n", buf);
+	get_artist(buf,256);
+	printf ("artist %s\n", buf);
+	print_to_scr (buf);
 */
-
-
+	tunning () ;
 
 
 	//print_to_scr ("\x1B\x25\x01"); //Разрешение юзверских шрифтов
