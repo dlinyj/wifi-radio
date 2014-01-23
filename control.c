@@ -1,0 +1,350 @@
+ #include <stdio.h>   /* Standard input/output definitions */
+ #include <stdlib.h>  /* Standard General Utilities Library */
+ #include <string.h>  /* String function definitions */
+ #include <unistd.h>  /* UNIX standard function definitions */
+ #include <fcntl.h>   /* File control definitions */
+ #include <errno.h>   /* Error number definitions */
+ #include <termios.h> /* POSIX terminal control definitions */
+ 
+ #include <curses.h> //ВНИМАНИЕ, либа!!! Для отладки
+
+#define STR_BUFFLEN 128
+static int mainfd=0;                                       /* File descriptor of COM-port*/
+static int tun_disp_position=1; //Позиция символа настройки на экране
+static int tun_char_position=1; //Текущий символ настройки
+
+int initcomport(void)
+{
+//*****************************************************************************
+//******************init COM-port**********************************************
+	//int mainfd=0;                                       /* File descriptor */
+ 
+	struct termios options;
+	mainfd = open("/dev/ttyUSB0", O_RDWR | O_NOCTTY | O_NDELAY);
+	if (mainfd == -1)
+	{                                                       /* Could not open the port */
+		fprintf(stderr, "open_port: Unable to open /dev/ttyUSB0 - %s\n",
+		strerror(errno));
+		exit (-1);
+	}
+ 
+	/* Configure port reading */
+	//fcntl(mainfd, F_SETFL, FNDELAY);  read com-port not bloking
+	fcntl(mainfd, F_SETFL, 0);  //read com-port is the bloking
+	 
+	 
+/* Get the current options for the port */
+	tcgetattr(mainfd, &options);
+	cfsetispeed(&options, B9600);                     /* Set the baud rates to 9600 */
+	//cfsetospeed(&options, B115200);
+	 
+/* Enable the receiver and set local mode */
+	options.c_cflag |= (CLOCAL | CREAD);
+	options.c_cflag &= ~PARENB;                         /* Mask the character size to 8 bits, no parity */
+	options.c_cflag &= ~CSTOPB;
+	options.c_cflag &= ~CSIZE;
+	options.c_cflag |=  CS8;                            /* Select 8 data bits */
+	options.c_cflag &= ~CRTSCTS;                        /* Disable hardware flow control */ 
+  
+/* Enable data to be processed as raw input */
+	options.c_lflag &= ~(ICANON | ECHO | ISIG);
+/* Set the new options for the port */
+	tcsetattr(mainfd, TCSANOW, &options);
+//*****************************************************************************
+//*****************************************************************************
+	return mainfd;
+}
+
+
+void clear_scr() {
+	char *s;
+	s = strdup("\x0C"); 
+	write(mainfd,s,strlen(s));
+	free(s);
+}
+
+void home_scr() {
+	char *s;
+	s = strdup("\x1B[H"); 
+	write(mainfd,s,strlen(s));
+	free(s);
+}
+
+void set_to_position_scr(char col, char str){
+	static char s[4];
+	s[0]='\x1f';
+	s[1]='\x24';
+	s[2]=col;
+	s[3]=str;
+	write(mainfd,s,4);
+}
+
+void print_to_scr (char * s) {
+	int i;
+	for (i=0;i<65535;i++) {
+		if (s[i]!='\0') {
+			write(mainfd,&s[i],1);
+			/*
+			if(s[i]==',') {
+				write(mainfd,"\x1F,",2);
+				continue;
+			}
+			if(s[i]=='.') {
+				write(mainfd,"\x1F.",2);
+				continue;
+			}
+			*/
+
+		} else break;
+	}
+}
+
+void reload_char(int i) {
+	int j; //костыль от перезагрузки шрифта
+	for(j=0;j<3;j++)
+		switch (i)
+		{
+			case 1: print_to_scr ("\x1B\x26\xA0\x21\x84\x10\x42\x80"); //Загрузка шрифта символ первой палочки OK 
+					break;
+			case 2: print_to_scr ("\x1B\x26\xA0\x42\x08\x21\x84\x80"); //Загрузка шрифта символ 2 палочки OK
+					break;
+			case 3: print_to_scr ("\x1B\x26\xA0\x84\x10\x42\x08\x81"); //Загрузка шрифта символ 3 палочки OK
+					break;
+			case 4: print_to_scr ("\x1B\x26\xA0\x08\x21\x84\x10\x82"); //Загрузка шрифта символ 4 палочки OK
+					break;
+			case 5: print_to_scr ("\x1B\x26\xA0\x10\x42\x08\x21\x84"); //Загрузка шрифта символ 5 палочки OK
+			default:      ;
+		
+		}
+}
+
+void send_cmd(char * buf, int len, char *cmd, int cat_len){
+	FILE* ptr;
+	//char *cmd = "echo \"currentsong\" | nc localhost 6600 | grep -e \"^Title: \""; //название для всех
+	char *s;
+	s = malloc(len+cat_len);
+	memset (s,'\0',len+cat_len);
+	if ((ptr = popen (cmd, "r")) != NULL)
+		fgets (s, len+7, ptr);
+	s[strlen(s)-1]='\0';
+	strcpy(buf,&s[cat_len]);
+	free (s);
+	pclose(ptr);
+}
+
+void get_title (char * buf, int len) { //название для всех
+	send_cmd(buf, len, "echo \"currentsong\" | nc localhost 6600 | grep -e \"^Title: \"", 7);//название для всех
+}
+
+void get_name (char * buf, int len) { //Это для радиостанций
+	send_cmd(buf, len, "echo \"currentsong\" | nc localhost 6600 | grep -e \"^Name: \"", 6);//Это для радиостанций
+}
+
+void get_artist (char * buf, int len) { //Это для артистов
+	send_cmd(buf, len, "echo \"currentsong\" | nc localhost 6600 | grep -e \"^Artist: \"", 8);//Это для артистов
+ }
+
+void move_symb_left () {
+	if ((tun_disp_position>1) || (tun_char_position>1)) {
+		tun_char_position--;
+		if (tun_char_position<1) {
+			tun_char_position=5;
+			tun_disp_position--;
+			print_to_scr ("\x08  \x08\x08"); //Move cursor left and space
+			}
+		reload_char(tun_char_position);
+		print_to_scr ("\xA0\x08"); //Печааем палку и возвращаем курсор взад
+	}
+}
+
+
+void move_symb_right () {
+	if ((tun_disp_position<20) || (tun_char_position<5)) {
+		tun_char_position++;
+		if (tun_char_position>5) {
+			tun_char_position=1;
+			tun_disp_position++;
+			print_to_scr ("\x08  "); //Move cursor left and space
+			}
+		reload_char(tun_char_position);
+		print_to_scr ("\xA0\x08"); //Печааем палку и возвращаем курсор взад
+	}
+}
+
+
+void tunning () {
+//static int tun_disp_position=1; //Позиция символа настройки на экране
+//static int tun_char_position=1; //Текущий символ настройки
+	
+	clear_scr();
+	home_scr();
+	print_to_scr ("\x1B\x25\x01"); //Разрешение юзверских шрифтов
+	set_to_position_scr(8, 2);
+	print_to_scr ("SEARCH"); //Поиск
+	
+	set_to_position_scr(tun_disp_position, 1); //устанавливаем курсор в текущую позицию
+	reload_char(tun_char_position); //загружаем символ
+	print_to_scr ("\xA0\x08"); //Печааем палку и возвращаем курсор взад
+
+	int ch;
+	initscr();
+	raw();
+	keypad(stdscr, TRUE);
+	noecho();
+	while (1) {
+	ch = getch();
+	if(ch == KEY_UP) {
+		printw("UP quit");
+		break;}
+
+	if(ch == KEY_LEFT) {
+		printw("Left Key pressed\n");
+		move_symb_left ();
+	}
+
+	if(ch == KEY_RIGHT) {
+		printw("Right Key pressed\n");
+		move_symb_right();
+	}
+	refresh();
+	}
+	endwin();
+	
+}
+
+
+
+int main() {
+/*
+Смотри внизу полезняшки!!!
+ */
+
+	char buf[256];
+	if (initcomport()) <0
+		return -1;
+	
+	get_title(buf,256);
+	//printf ("title %s\n", buf);
+	//print_to_scr (buf);
+	//print_to_scr ("\n");
+	get_name(buf,256);
+	//printf ("name %s\n", buf);
+	get_artist(buf,256);
+	//printf ("artist %s\n", buf);
+	//print_to_scr (buf);
+	
+	tunning () ;
+
+//set_to_position_scr(5, 2);
+
+/*
+//Бегущая палочка реализована
+
+	int i,j;
+	home_scr();
+	for (j=1;j<21;j++) {
+		for (i=1;i<6;i++)
+		{
+			reload_char(i);
+			//set_to_position_scr(j, 1);
+			print_to_scr ("\xA0"); //Печать юзверских шрифтов
+			print_to_scr ("\x08"); //Move cursor left 
+			usleep(50000);
+		}
+	if(j!=20) {
+		print_to_scr ("\x08  "); //Move cursor left and space
+		}
+	}
+
+	for (j=20;j>0;j--) {
+		for (i=5;i>0;i--)
+		{
+			reload_char(i);
+			reload_char(i);
+			reload_char(i);
+			//set_to_position_scr(j, 1);
+			print_to_scr ("\xA0"); //Печать юзверских шрифтов
+			print_to_scr ("\x08"); //Move cursor left 
+			usleep(50000);
+		}
+	if(j!=1) {
+		print_to_scr ("\x08  \x08\x08"); //Move cursor left and space
+		}
+	}
+	
+	
+// до сюда
+*/
+
+
+
+
+	//print_to_scr ("\x1B\x25\x01"); //Разрешение юзверских шрифтов
+	//print_to_scr ("\x1B\x25\x00"); //Запрещение юзверских шрифтов
+	//print_to_scr ("Abc\xA0\xA1\xA2\xA3\xA4\x20\x21\x22\x23\x24\x25\x26\x27"); //Печать юзверских шрифтов
+	//print_to_scr ("\x1F\x55"); //Display Counter
+
+	close (mainfd);
+	return 0;
+}
+
+
+
+
+/*
+	char *s, *s1, *s2;
+	s1 = strdup(" text0 ");
+	s2 = strdup(" text1 ");
+	s = malloc(STR_BUFFLEN);
+	memset (s,'\0',STR_BUFFLEN);
+	// *s="\0";    //Я инициализирую строки так это - 
+	//намного быстрее вызовов strcpy 
+	strcat(s,s1); //Функция strcat
+	strcat(s,s2); 
+	printf("%s\n", s);
+
+	free(s1);
+	free(s2);
+	free(s);
+*/
+
+
+
+
+
+
+
+
+/*
+ #include <stdio.h>
+#include <iconv.h>
+#include <errno.h>
+#include <err.h>
+int main() {
+  iconv_t cd;
+  size_t k, f, t;
+  int se;
+  const char *code = "Вопрос!";
+  const char* in = code;
+  char buf[100];
+  char* out = buf;
+
+  cd = iconv_open("cp1251", "koi8-r");
+  if( cd == (iconv_t)(-1) )
+    err( 1, "iconv_open" );
+  f = strlen(code);
+  t = sizeof buf;
+  memset( &buf, 0, sizeof buf );
+  errno = 0;
+  k = iconv(cd, &in, &f, &out, &t);
+  se = errno;
+  printf( "converted: %u,error=%d\n", (unsigned) k, se );
+
+  printf("string: %s\n", buf);
+
+  iconv_close(cd);
+  return 0;
+}
+
+ * 
+ */
