@@ -217,6 +217,45 @@ void tunning () {
 	endwin();
 	
 }
+#define	MAX_LINE_SIZE 256
+
+int readconfig(char *filename)
+{
+	FILE *instream;
+	char inbuf[MAX_LINE_SIZE];
+	int  rv = 0;
+	int lineno = 0;
+	int i;
+	instream = fopen(filename, "r");
+	if (instream == NULL) {
+		printf("Unable to open config file '%s': %m\n", filename);
+		return -1;
+	}
+
+	while (fgets(inbuf, MAX_LINE_SIZE, instream) != NULL) {
+		int len = strlen(inbuf);
+		if (inbuf[len-1] != '\n') {
+			lineno++;
+			printf("line %d is too long in config file", lineno);
+			continue;
+		}
+		/* Remove the '\n' */
+		inbuf[len-1] = '\0';
+		//handle_config_line(inbuf);
+		printf("string=%s\n",inbuf);
+		for (i=0;i<len;i++) 
+			if((inbuf[0] !='#') || (inbuf[i]=='#') || (inbuf[i+1]=='*')) {
+				printf("STATION=%s\n",&inbuf[i+2]);
+				break;
+			}
+
+	}
+
+
+	fclose(instream);
+	return rv;
+}
+
 
 
 
@@ -242,7 +281,8 @@ int main() {
 	printf ("artist %s\n", buf);
 	print_to_scr (buf);
 */
-	tunning () ;
+	readconfig("addradio.sh");
+	//tunning () ;
 
 
 	//print_to_scr ("\x1B\x25\x01"); //Разрешение юзверских шрифтов
@@ -297,7 +337,7 @@ int main() {
 
   cd = iconv_open("cp1251", "koi8-r");
   if( cd == (iconv_t)(-1) )
-    err( 1, "iconv_open" );
+	err( 1, "iconv_open" );
   f = strlen(code);
   t = sizeof buf;
   memset( &buf, 0, sizeof buf );
