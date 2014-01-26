@@ -5,6 +5,7 @@
  #include <fcntl.h>   /* File control definitions */
  #include <errno.h>   /* Error number definitions */
  #include <termios.h> /* POSIX terminal control definitions */
+ #include <signal.h> 
  
  #include <curses.h> //ВНИМАНИЕ, либа!!! Для отладки
 
@@ -12,6 +13,10 @@
 static int mainfd=0;                                       /* File descriptor of COM-port*/
 static int tun_disp_position=1; //Позиция символа настройки на экране
 static int tun_char_position=1; //Текущий символ настройки
+static int stations=0;
+char station_name[100][256];
+
+
 
 int initcomport(void)
 {
@@ -20,10 +25,10 @@ int initcomport(void)
 	//int mainfd=0;                                       /* File descriptor */
  
 	struct termios options;
-	mainfd = open("/dev/ttyUSB0", O_RDWR | O_NOCTTY | O_NDELAY);
+	mainfd = open("/dev/ttyACM0", O_RDWR | O_NOCTTY | O_NDELAY);
 	if (mainfd == -1)
 	{                                                       /* Could not open the port */
-		fprintf(stderr, "open_port: Unable to open /dev/ttyUSB0 - %s\n",
+		fprintf(stderr, "open_port: Unable to open /dev/ttyACM0 - %s\n",
 		strerror(errno));
 		exit (-1);
 	}
@@ -219,7 +224,7 @@ void tunning () {
 }
 #define	MAX_LINE_SIZE 256
 
-int readconfig(char *filename)
+int parsing_addscript(char *filename)
 {
 	FILE *instream;
 	char inbuf[MAX_LINE_SIZE];
@@ -241,47 +246,120 @@ int readconfig(char *filename)
 		}
 		/* Remove the '\n' */
 		inbuf[len-1] = '\0';
-		//handle_config_line(inbuf);
-		printf("string=%s\n",inbuf);
+		//printf("string=%s\n",inbuf);
+		system(inbuf); //run the script!
 		for (i=0;i<len;i++) 
-			if((inbuf[0] !='#') || (inbuf[i]=='#') || (inbuf[i+1]=='*')) {
-				printf("STATION=%s\n",&inbuf[i+2]);
+			if((inbuf[0] !='#') && (inbuf[i]=='#') && (inbuf[i+1]=='*')) { //Если не комментарий, стоит решётка и затем звезда
+				strcpy(station_name[stations],&inbuf[i+2]); 
+				stations++;
 				break;
 			}
 
 	}
-
-
 	fclose(instream);
 	return rv;
 }
 
 
+#define BUFF_LEN 256
+
+void show_current_track() {
+	/*
+	get_title (char * buf, int len)//название для всех
+	get_name (char * buf, int len) //Это для радиостанций (название радио)
+	get_artist (char * buf, int len)  //Это для артистов
+	*/
+	int i;
+	
+	char cmp_buf_title[BUFF_LEN]; 
+	static char curent_buf_title[BUFF_LEN];
+	static int curent_title_position;
+	static int strlen_title;
+	
+	
+	char cmp_buf_name[BUFF_LEN];
+	static char curent_buf_name[BUFF_LEN];
+	static int curent_name_position;
+	static int strlen_name;
+	
+	char show [21];
+	show [20]='\0';
+	
+	get_title (cmp_buf_title, BUFF_LEN);
+	if (strcmp(cmp_buf_title,curent_buf_title) != 0) {
+		strcpy(curent_buf_title, cmp_buf_title);
+		curent_title_position=0;
+		strlen_title=strlen(curent_buf_title);
+	}
+	
+	get_name (cmp_buf_name, BUFF_LEN);
+	if (strcmp(cmp_buf_name,curent_buf_name) != 0) {
+		strcpy(curent_buf_name, cmp_buf_name);
+		curent_name_position=0;
+		strlen_name=strlen(curent_buf_name);
+	}
+
+//Show title
+	memset (show,' ',20);
+	if ((curent_title_position==0) && (strlen_title<=20)) {
+		strncpy (show, curent_buf_title, 20);
+		curent_title_position++;
+		home_scr();
+		print_to_scr (show);
+	}
+	if (strlen_title>20) {
+		if ((strlen_title-curent_title_position)>=20) {
+			strncpy (show, &curent_buf_title[curent_title_position], 20);
+		} else strncpy (show, &curent_buf_title[curent_title_position], (strlen_title-curent_title_position));
+		curent_title_position++;
+		if (curent_title_position==strlen_title)
+			curent_title_position=0;
+		home_scr();
+		print_to_scr (show);
+	}
+	
+//Show name
+	memset (show,' ',20);
+	if ((curent_name_position==0) && (strlen_name<=20)) {
+		strncpy (show, curent_buf_name, 20);
+		curent_name_position++;
+		set_to_position_scr(1, 2);
+		print_to_scr (show);
+	}
+	if (strlen_name>20) {
+		if ((strlen_name-curent_name_position)>=20) {
+			strncpy (show, &curent_buf_name[curent_name_position], 20);
+		} else strncpy (show, &curent_buf_name[curent_name_position], (strlen_name-curent_name_position));
+		curent_name_position++;
+		if (curent_name_position==strlen_name)
+			curent_name_position=0;
+		set_to_position_scr(1, 2);
+		print_to_scr (show);
+	}
+}
 
 
 int main() {
 /*
 Смотри внизу полезняшки!!!
  */
-
-	char buf[256];
+	printf("Trololo!\n");
+	int i;
+	//char buf[256];
 	if (initcomport()<0) 
 		return -1;
-
-	clear_scr();
-	home_scr();
-/*	
-	get_title(buf,256);
-	printf ("title %s\n", buf);
-	print_to_scr (buf);
-	print_to_scr ("\n");
-	get_name(buf,256);
-	printf ("name %s\n", buf);
-	get_artist(buf,256);
-	printf ("artist %s\n", buf);
-	print_to_scr (buf);
+/*
+	parsing_addscript("addradio.sh");
+	printf("\n");
+	for(i=0;i<stations;i++) {
+		printf("%s\n",station_name[i]);
+	}
 */
-	readconfig("addradio.sh");
+	while (1) {
+		show_current_track();
+		usleep(500000);
+	}
+
 	//tunning () ;
 
 
