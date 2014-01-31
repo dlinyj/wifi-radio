@@ -212,6 +212,13 @@ void tuning_action() {
 	print_to_scr ("\x1B\x25\x01"); //Разрешение юзверских шрифтов
 	set_to_position_scr(8, 2);
 	print_to_scr ("SEARCH"); //Поиск
+
+//Здеся мы и должны получить позицию!
+	int playlist_len, curent_pos;
+	playlist_len=get_playlistlength();
+	curent_pos=get_number_curent_song();
+//И тута будем много-много ДУМАТЬ	
+	
 	
 	set_to_position_scr(tun_disp_position, 1); //устанавливаем курсор в текущую позицию
 	reload_char(tun_char_position); //загружаем символ
