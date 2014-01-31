@@ -6,8 +6,13 @@
  #include <errno.h>   /* Error number definitions */
  #include <termios.h> /* POSIX terminal control definitions */
  #include <signal.h> 
+ #include <pthread.h>
+ #include <semaphore.h>
+ #include <time.h>
  
  #include <curses.h> //ВНИМАНИЕ, либа!!! Для отладки
+
+//#define HOME
 
 #define STR_BUFFLEN 128
 static int mainfd=0;                                       /* File descriptor of COM-port*/
@@ -15,6 +20,9 @@ static int tun_disp_position=1; //Позиция символа настройк
 static int tun_char_position=1; //Текущий символ настройки
 static int stations=0;
 char station_name[100][256];
+int search_status=0;			//А был ли поиск?
+
+static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 
 
@@ -25,7 +33,7 @@ int initcomport(void)
 	//int mainfd=0;                                       /* File descriptor */
  
 	struct termios options;
-	mainfd = open("/dev/ttyACM0", O_RDWR | O_NOCTTY | O_NDELAY);
+	mainfd = open("/dev/ttyUSB0", O_RDWR | O_NOCTTY | O_NDELAY);
 	if (mainfd == -1)
 	{                                                       /* Could not open the port */
 		fprintf(stderr, "open_port: Unable to open /dev/ttyACM0 - %s\n",
@@ -131,7 +139,7 @@ void send_cmd(char * buf, int len, char *cmd, int cat_len){
 	memset (s,'\0',len+cat_len);
 	if ((ptr = popen (cmd, "r")) != NULL)
 		fgets (s, len+7, ptr);
-	s[strlen(s)-1]='\0';
+	if (strlen(s)>0) s[strlen(s)-1]='\0';
 	strcpy(buf,&s[cat_len]);
 	free (s);
 	pclose(ptr);
@@ -148,6 +156,18 @@ void get_name (char * buf, int len) { //Это для радиостанций
 void get_artist (char * buf, int len) { //Это для артистов
 	send_cmd(buf, len, "echo \"currentsong\" | nc localhost 6600 | grep -e \"^Artist: \"", 8);//Это для артистов
  }
+
+int get_number_curent_song () {
+	char buf[128];
+	send_cmd(buf, 128, "echo \"status\" | nc localhost 6600 | grep -e \"^song: \"", 6);//Получаем текущую позицию
+	return atoi(buf);
+}
+
+int get_playlistlength () {
+	char buf[128];
+	send_cmd(buf, 128, "echo \"status\" | nc localhost 6600 | grep -e \"^playlistlength: \"", 16);//Получаем длинну плей-листа
+	return atoi(buf);
+}
 
 void move_symb_left () {
 	if ((tun_disp_position>1) || (tun_char_position>1)) {
@@ -176,17 +196,19 @@ void move_symb_right () {
 	}
 }
 
-
-void tunning () {
-/* 
+void tuning_action() {
+ /*
  * Напоминание 
  * tun_disp_position Позиция символа настройки на экране
  * tun_char_position Текущий символ настройки
  * Вычисление позиции станции идёт по следующей формуле
  * sation_pos=(tun_disp_position-1)*5+tun_char_position
-*/
+ * */
+	pthread_mutex_lock(&mutex);
+
 	clear_scr();
 	home_scr();
+
 	print_to_scr ("\x1B\x25\x01"); //Разрешение юзверских шрифтов
 	set_to_position_scr(8, 2);
 	print_to_scr ("SEARCH"); //Поиск
@@ -194,34 +216,78 @@ void tunning () {
 	set_to_position_scr(tun_disp_position, 1); //устанавливаем курсор в текущую позицию
 	reload_char(tun_char_position); //загружаем символ
 	print_to_scr ("\xA0\x08"); //Печааем палку и возвращаем курсор взад
+	
 
+}
+
+
+
+int action=1;
+time_t last_time_action;
+
+
+void *KOSTYLI() {
+	time_t current_time;
+	while (1)
+	if (action==0) {
+		current_time = time(NULL); 
+		if ((current_time-last_time_action)>3) {
+			action++;
+			search_status++;
+			pthread_mutex_unlock(&mutex);
+		}
+	}
+	sleep(1);
+}
+
+//For PC with ncurses and keyboard!!!
+void tunning () {
 	int ch;
+	int result;
+	//Ncurses КОСТЫЛИ!!!
+	pthread_t thread1;
+	result = pthread_create( &thread1, NULL, &KOSTYLI, NULL);
+	if (result != 0) {
+		perror("Creating the first thread");
+		return EXIT_FAILURE;
+	}
+	
 	initscr();
 	raw();
 	keypad(stdscr, TRUE);
 	noecho();
 	while (1) {
-	ch = getch();
-	if(ch == KEY_UP) {
-		printw("UP quit");
-		break;}
+		ch = getch();
+		if(ch == KEY_UP) {
+			break;
+		} else {
+			if (action) {
+				tuning_action();
+				action--;
+				last_time_action = time(NULL); 
+			} else {
+				if(ch == KEY_LEFT) {
+					last_time_action = time(NULL);
+					move_symb_left (); //сдвинуть символ влево
+				}
+				if(ch == KEY_RIGHT) {
+					last_time_action = time(NULL);
+					move_symb_right(); //сдвинуть символ вправо
+				}
+				if(ch == KEY_DOWN) {
+					action++;
+					search_status++;
+					pthread_mutex_unlock(&mutex);
 
-	if(ch == KEY_LEFT) {
-		//printw("Left Key pressed\n");
-		move_symb_left ();
-		printw("sation_pos=%d ", (tun_disp_position-1)*5+tun_char_position);
-	}
-
-	if(ch == KEY_RIGHT) {
-		//printw("Right Key pressed\n");
-		move_symb_right();
-		printw("sation_pos=%d ", (tun_disp_position-1)*5+tun_char_position);
-	}
-	refresh();
+				}
+			}
+		}
+		refresh();
 	}
 	endwin();
-	
+	pthread_mutex_unlock(&mutex);
 }
+
 #define	MAX_LINE_SIZE 256
 
 int parsing_addscript(char *filename)
@@ -263,78 +329,91 @@ int parsing_addscript(char *filename)
 
 #define BUFF_LEN 256
 
-void show_current_track() {
-	/*
-	get_title (char * buf, int len)//название для всех
-	get_name (char * buf, int len) //Это для радиостанций (название радио)
-	get_artist (char * buf, int len)  //Это для артистов
-	*/
-	int i;
-	
-	char cmp_buf_title[BUFF_LEN]; 
-	static char curent_buf_title[BUFF_LEN];
-	static int curent_title_position;
-	static int strlen_title;
-	
-	
-	char cmp_buf_name[BUFF_LEN];
-	static char curent_buf_name[BUFF_LEN];
-	static int curent_name_position;
-	static int strlen_name;
-	
-	char show [21];
-	show [20]='\0';
-	
-	get_title (cmp_buf_title, BUFF_LEN);
-	if (strcmp(cmp_buf_title,curent_buf_title) != 0) {
-		strcpy(curent_buf_title, cmp_buf_title);
-		curent_title_position=0;
-		strlen_title=strlen(curent_buf_title);
-	}
-	
-	get_name (cmp_buf_name, BUFF_LEN);
-	if (strcmp(cmp_buf_name,curent_buf_name) != 0) {
-		strcpy(curent_buf_name, cmp_buf_name);
-		curent_name_position=0;
-		strlen_name=strlen(curent_buf_name);
-	}
-
-//Show title
-	memset (show,' ',20);
-	if ((curent_title_position==0) && (strlen_title<=20)) {
-		strncpy (show, curent_buf_title, 20);
-		curent_title_position++;
-		home_scr();
-		print_to_scr (show);
-	}
-	if (strlen_title>20) {
-		if ((strlen_title-curent_title_position)>=20) {
-			strncpy (show, &curent_buf_title[curent_title_position], 20);
-		} else strncpy (show, &curent_buf_title[curent_title_position], (strlen_title-curent_title_position));
-		curent_title_position++;
-		if (curent_title_position==strlen_title)
+//void show_current_track(int number_signal) {
+void *show_current_track() {
+	while (1) {
+		/*
+		get_title (char * buf, int len)//название для всех
+		get_name (char * buf, int len) //Это для радиостанций (название радио)
+		get_artist (char * buf, int len)  //Это для артистов
+		*/
+		pthread_mutex_lock(&mutex);
+		
+		char cmp_buf_title[BUFF_LEN]; 
+		static char curent_buf_title[BUFF_LEN];
+		static int curent_title_position;
+		static int strlen_title;
+		
+		
+		char cmp_buf_name[BUFF_LEN];
+		static char curent_buf_name[BUFF_LEN];
+		static int curent_name_position;
+		static int strlen_name;
+		
+		char show [21];
+		show [20]='\0';
+		
+		get_title (cmp_buf_title, BUFF_LEN);
+		if (strcmp(cmp_buf_title,curent_buf_title) != 0) {
+			strcpy(curent_buf_title, cmp_buf_title);
 			curent_title_position=0;
-		home_scr();
-		print_to_scr (show);
-	}
-	
-//Show name
-	memset (show,' ',20);
-	if ((curent_name_position==0) && (strlen_name<=20)) {
-		strncpy (show, curent_buf_name, 20);
-		curent_name_position++;
-		set_to_position_scr(1, 2);
-		print_to_scr (show);
-	}
-	if (strlen_name>20) {
-		if ((strlen_name-curent_name_position)>=20) {
-			strncpy (show, &curent_buf_name[curent_name_position], 20);
-		} else strncpy (show, &curent_buf_name[curent_name_position], (strlen_name-curent_name_position));
-		curent_name_position++;
-		if (curent_name_position==strlen_name)
+			strlen_title=strlen(curent_buf_title);
+		}
+
+		get_name (cmp_buf_name, BUFF_LEN);
+		if (strlen(cmp_buf_name)==0)
+			get_artist(cmp_buf_name, BUFF_LEN);
+
+		if (strcmp(cmp_buf_name,curent_buf_name) != 0) {
+			strcpy(curent_buf_name, cmp_buf_name);
 			curent_name_position=0;
-		set_to_position_scr(1, 2);
-		print_to_scr (show);
+			strlen_name=strlen(curent_buf_name);
+		}
+
+	//Show title
+		memset (show,' ',20);
+		if (((curent_title_position==0) && (strlen_title<=20)) || (search_status==1)) {
+			home_scr();
+			print_to_scr (show);
+			strncpy (show, curent_buf_title, 20);
+			curent_title_position++;
+			home_scr();
+			print_to_scr (show);
+		}
+		if (strlen_title>20) {
+			if ((strlen_title-curent_title_position)>=20) {
+				strncpy (show, &curent_buf_title[curent_title_position], 20);
+			} else strncpy (show, &curent_buf_title[curent_title_position], (strlen_title-curent_title_position));
+			curent_title_position++;
+			if (curent_title_position==strlen_title)
+				curent_title_position=0;
+			home_scr();
+			print_to_scr (show);
+		}
+		
+	//Show name
+		memset (show,' ',20);
+		if (((curent_name_position==0) && (strlen_name<=20)) || (search_status==1)) {
+			set_to_position_scr(1, 2);
+			print_to_scr (show);
+			strncpy (show, curent_buf_name, 20);
+			curent_name_position++;
+			set_to_position_scr(1, 2);
+			print_to_scr (show);
+		}
+		if (strlen_name>20) {
+			if ((strlen_name-curent_name_position)>=20) {
+				strncpy (show, &curent_buf_name[curent_name_position], 20);
+			} else strncpy (show, &curent_buf_name[curent_name_position], (strlen_name-curent_name_position));
+			curent_name_position++;
+			if (curent_name_position==strlen_name)
+				curent_name_position=0;
+			set_to_position_scr(1, 2);
+			print_to_scr (show);
+		}
+		if (search_status==1) search_status--;
+		pthread_mutex_unlock(&mutex);
+		usleep (500000);
 	}
 }
 
@@ -344,10 +423,9 @@ int main() {
 Смотри внизу полезняшки!!!
  */
 	printf("Trololo!\n");
-	int i;
-	//char buf[256];
 	if (initcomport()<0) 
 		return -1;
+	clear_scr();
 /*
 	parsing_addscript("addradio.sh");
 	printf("\n");
@@ -355,13 +433,26 @@ int main() {
 		printf("%s\n",station_name[i]);
 	}
 */
-	while (1) {
-		show_current_track();
-		usleep(500000);
+
+/*
+	struct sigaction act;
+	act.sa_handler = show_current_track; //Передаём параметр сигнала
+	sigaction (SIGALRM, & act, 0);
+*/
+
+/*
+	signal(SIGALRM, show_current_track);
+	signal(SIGALRM, SIG_IGN);          // ignore this signal      
+	ualarm (500000, 0);
+*/
+	int result;
+	pthread_t thread1;
+	result = pthread_create( &thread1, NULL, &show_current_track, NULL);
+	if (result != 0) {
+		perror("Creating the first thread");
+		return EXIT_FAILURE;
 	}
-
-	//tunning () ;
-
+	tunning () ;
 
 	//print_to_scr ("\x1B\x25\x01"); //Разрешение юзверских шрифтов
 	//print_to_scr ("\x1B\x25\x00"); //Запрещение юзверских шрифтов
