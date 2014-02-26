@@ -15,6 +15,8 @@
 //#define HOME
 
 #define STR_BUFFLEN 128
+#define COM_PORT_NAME "/dev/ttyUSB0"
+//#define COM_PORT_NAME "/dev/null"
 static int mainfd=0;                                       /* File descriptor of COM-port*/
 static int tun_disp_position=1; //Позиция символа настройки на экране
 static int tun_char_position=1; //Текущий символ настройки
@@ -23,6 +25,7 @@ char station_name[100][256];
 int search_status=0;			//А был ли поиск?
 
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t last_time_action_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 
 
@@ -33,10 +36,10 @@ int initcomport(void)
 	//int mainfd=0;                                       /* File descriptor */
  
 	struct termios options;
-	mainfd = open("/dev/ttyUSB0", O_RDWR | O_NOCTTY | O_NDELAY);
+	mainfd = open(COM_PORT_NAME, O_RDWR | O_NOCTTY | O_NDELAY);
 	if (mainfd == -1)
 	{                                                       /* Could not open the port */
-		fprintf(stderr, "open_port: Unable to open /dev/ttyACM0 - %s\n",
+		fprintf(stderr, "open_port: Unable to open" COM_PORT_NAME "- %s\n",
 		strerror(errno));
 		exit (-1);
 	}
@@ -196,6 +199,40 @@ void move_symb_right () {
 	}
 }
 
+int playlist_len, curent_song_pos;
+double delta_step;
+
+void show_current_cursor_pos () {
+	clear_scr();
+	home_scr();
+
+	print_to_scr ("\x1B\x25\x01"); //Разрешение юзверских шрифтов
+	set_to_position_scr(8, 2);
+	print_to_scr ("SEARCH"); //Поиск
+
+//Здеся мы и должны получить позицию!
+
+	playlist_len=get_playlistlength();
+	printw("playlist_len=%d\n",playlist_len);
+	curent_song_pos=get_number_curent_song();
+	printw("curent_song_pos=%d\n",curent_song_pos);
+	delta_step=(double)99/(double)(playlist_len-1);
+	printw("delta_step=%f\n",delta_step);
+	printw("curent position =%d\n", (int)(delta_step*curent_song_pos));
+	tun_disp_position=(int)(delta_step*curent_song_pos/5)+1;
+	printw("tun_disp_position=%d\n",tun_disp_position);
+	tun_char_position=(int)(delta_step*curent_song_pos)%5+1;
+	printw("tun_char_position=%d\n",tun_char_position);
+
+//И тута будем много-много ДУМАТЬ
+	
+	
+	set_to_position_scr(tun_disp_position, 1); //устанавливаем курсор в текущую позицию
+	reload_char(tun_char_position); //загружаем символ
+	print_to_scr ("\xA0\x08"); //Печааем палку и возвращаем курсор взад
+	
+}
+
 void tuning_action() {
  /*
  * Напоминание 
@@ -205,25 +242,7 @@ void tuning_action() {
  * sation_pos=(tun_disp_position-1)*5+tun_char_position
  * */
 	pthread_mutex_lock(&mutex);
-
-	clear_scr();
-	home_scr();
-
-	print_to_scr ("\x1B\x25\x01"); //Разрешение юзверских шрифтов
-	set_to_position_scr(8, 2);
-	print_to_scr ("SEARCH"); //Поиск
-
-//Здеся мы и должны получить позицию!
-	int playlist_len, curent_pos;
-	playlist_len=get_playlistlength();
-	curent_pos=get_number_curent_song();
-//И тута будем много-много ДУМАТЬ	
-	
-	
-	set_to_position_scr(tun_disp_position, 1); //устанавливаем курсор в текущую позицию
-	reload_char(tun_char_position); //загружаем символ
-	print_to_scr ("\xA0\x08"); //Печааем палку и возвращаем курсор взад
-	
+	show_current_cursor_pos ();
 
 }
 
@@ -275,11 +294,15 @@ void tunning () {
 			} else {
 				if(ch == KEY_LEFT) {
 					last_time_action = time(NULL);
-					move_symb_left (); //сдвинуть символ влево
+					//move_symb_left (); //сдвинуть символ влево
+					system("mpc prev > /dev/null");
+					show_current_cursor_pos ();
 				}
 				if(ch == KEY_RIGHT) {
 					last_time_action = time(NULL);
-					move_symb_right(); //сдвинуть символ вправо
+					//move_symb_right(); //сдвинуть символ вправо
+					system("mpc next > /dev/null");
+					show_current_cursor_pos ();
 				}
 				if(ch == KEY_DOWN) {
 					action++;
