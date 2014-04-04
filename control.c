@@ -395,13 +395,15 @@ void tunning () {
 		if (!read_gpio(11) && !but_was_press) {
 			system("clear");
 			printf("Button pressed\n");
-			system("mpc toggle > /dev/null");
+			//system("mpc toggle > /dev/null");
+			system("mpc  -h 192.168.1.10 toggle > /dev/null");
 			
 			but_was_press++;
 		}
 		if (read_gpio(11) && but_was_press) {
 			system("clear");
 			printf("Button unpressed\n");
+			
 			but_was_press--;
 		}
 		usleep(1);
