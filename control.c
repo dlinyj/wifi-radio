@@ -10,14 +10,16 @@
  #include <semaphore.h>
  #include <time.h>
  
- #include <curses.h> //ВНИМАНИЕ, либа!!! Для отладки
+#include <sys/types.h>
+#include <sys/stat.h>
+ 
 
 //#define HOME
 
 #define STR_BUFFLEN 128
 #define COM_PORT_NAME "/dev/ttyUSB0"
-//#define COM_PORT_NAME "/dev/null"
-static int mainfd=0;                                       /* File descriptor of COM-port*/
+
+static int mainfd=0;				/* File descriptor of COM-port*/
 static int tun_disp_position=1; //Позиция символа настройки на экране
 static int tun_char_position=1; //Текущий символ настройки
 static int stations=0;
@@ -149,26 +151,31 @@ void send_cmd(char * buf, int len, char *cmd, int cat_len){
 }
 
 void get_title (char * buf, int len) { //название для всех
-	send_cmd(buf, len, "echo \"currentsong\" | nc localhost 6600 | grep -e \"^Title: \"", 7);//название для всех
+	//send_cmd(buf, len, "echo \"currentsong\" | nc localhost 6600 | grep -e \"^Title: \"", 7);//название для всех
+	send_cmd(buf, len, "echo \"currentsong\" | nc 192.168.1.10 6600 | grep -e \"^Title: \"", 7);//название для всех
 }
 
 void get_name (char * buf, int len) { //Это для радиостанций
-	send_cmd(buf, len, "echo \"currentsong\" | nc localhost 6600 | grep -e \"^Name: \"", 6);//Это для радиостанций
+	//send_cmd(buf, len, "echo \"currentsong\" | nc localhost 6600 | grep -e \"^Name: \"", 6);//Это для радиостанций
+	send_cmd(buf, len, "echo \"currentsong\" | nc 192.168.1.10 6600 | grep -e \"^Name: \"", 6);//Это для радиостанций
 }
 
 void get_artist (char * buf, int len) { //Это для артистов
-	send_cmd(buf, len, "echo \"currentsong\" | nc localhost 6600 | grep -e \"^Artist: \"", 8);//Это для артистов
+	//send_cmd(buf, len, "echo \"currentsong\" | nc localhost 6600 | grep -e \"^Artist: \"", 8);//Это для артистов
+	send_cmd(buf, len, "echo \"currentsong\" | nc 192.168.1.10 6600 | grep -e \"^Artist: \"", 8);//Это для артистов
  }
 
 int get_number_curent_song () {
 	char buf[128];
-	send_cmd(buf, 128, "echo \"status\" | nc localhost 6600 | grep -e \"^song: \"", 6);//Получаем текущую позицию
+	//send_cmd(buf, 128, "echo \"status\" | nc localhost 6600 | grep -e \"^song: \"", 6);//Получаем текущую позицию
+	send_cmd(buf, 128, "echo \"status\" | nc 192.168.1.10 6600 | grep -e \"^song: \"", 6);//Получаем текущую позицию
 	return atoi(buf);
 }
 
 int get_playlistlength () {
 	char buf[128];
-	send_cmd(buf, 128, "echo \"status\" | nc localhost 6600 | grep -e \"^playlistlength: \"", 16);//Получаем длинну плей-листа
+	//send_cmd(buf, 128, "echo \"status\" | nc localhost 6600 | grep -e \"^playlistlength: \"", 16);//Получаем длинну плей-листа
+	send_cmd(buf, 128, "echo \"status\" | nc 192.168.1.10 6600 | grep -e \"^playlistlength: \"", 16);//Получаем длинну плей-листа
 	return atoi(buf);
 }
 
@@ -276,76 +283,129 @@ void *KOSTYLI() {
 	sleep(1);
 }
 
+int read_gpio(int gpio) {
+	char value;
+	char buf[256]={0};
+	sprintf(buf, "/sys/class/gpio/gpio%d/value", gpio);
+	int fd = open(buf, O_RDONLY);
+	read(fd, &value, 1);
+	close(fd);
+	if(value == '0')
+	{ 
+		// Current GPIO status low
+		return 0;
+	}
+	else
+	{
+		// Current GPIO status high
+		return 1;
+	}
+}
+
 //For PC with ncurses and keyboard!!!
 void tunning () {
-	int ch;
 	int result;
-	//Ncurses КОСТЫЛИ!!!
 	pthread_t thread1;
 	result = pthread_create( &thread1, NULL, &KOSTYLI, NULL);
 	if (result != 0) {
 		perror("Creating the first thread");
-		return EXIT_FAILURE;
+		//return EXIT_FAILURE;
+		exit(1);
 	}
+
+	int newpos=0;
+	int enc_state=0;
 	
-	initscr();
-	raw();
-	keypad(stdscr, TRUE);
-	noecho();
+	int end_data=0;
+	int old_enc_data=0;
+	int but_was_press=0;
+
 	while (1) {
-		ch = getch();
-		if(ch == KEY_UP) {
-			break;
-		} else {
-			/*
+
+		newpos = (read_gpio(18)<<1)+read_gpio(20);
+
+		switch(enc_state)
+			{
+			case 2:
+				{
+				if(newpos == 3) end_data++;
+				if(newpos == 0) end_data--; 
+				break;
+				}
+		 
+			case 0:
+				{
+				if(newpos == 2) end_data++;
+				if(newpos == 1) end_data--; 
+				break;
+				}
+			case 1:
+				{
+				if(newpos == 0) end_data++;
+				if(newpos == 3) end_data--; 
+				break;
+				}
+			case 3:
+				{
+				if(newpos == 1) end_data++;
+				if(newpos == 2) end_data--; 
+				break;
+				}
+			}
+		 
+		enc_state = newpos;
+
+		if (end_data-old_enc_data>=4) {
+			system("clear");
+			printf("Right\n");
+
+			last_time_action = time(NULL);
+			get_cur_position ();
+			if (playlist_len!=(curent_song_pos+1)) {
+				//system("mpc next > /dev/null");
+				system("mpc -h 192.168.1.10 next > /dev/null");
+			}
 			if (action) {
 				tuning_action();
 				action--;
-				last_time_action = time(NULL); 
-			} */
-			//} else {
-				if(ch == KEY_LEFT) {
-					last_time_action = time(NULL);
-					//move_symb_left (); //сдвинуть символ влево
-					get_cur_position ();
-					system("mpc prev > /dev/null");
-					if (action) {
-						tuning_action();
-						action--;
-						//last_time_action = time(NULL); 
-					} 
-					show_current_cursor_pos ();
-				}
-				if(ch == KEY_RIGHT) {
-					last_time_action = time(NULL);
-					//move_symb_right(); //сдвинуть символ вправо
-					get_cur_position ();
-					if (playlist_len!=(curent_song_pos+1)) {
-						system("mpc next > /dev/null");
-					}
-					if (action) {
-						tuning_action();
-						action--;
-						//last_time_action = time(NULL); 
-					} 
+			} 
 
+			show_current_cursor_pos ();
 
-					show_current_cursor_pos ();
-				}
-				if(ch == KEY_DOWN) {
-					/*
-					action++;
-					search_status++;
-					pthread_mutex_unlock(&mutex);
-					*/
-					system("mpc toggle > /dev/null");
-
-				}
-			}
-//		}
-		refresh();
+			old_enc_data=end_data;
+		}
+		
+		if (old_enc_data-end_data>=4) {
+			system("clear");
+			printf("Left\n");
+			
+			last_time_action = time(NULL);
+			get_cur_position ();
+			//system("mpc prev > /dev/null");
+			system("mpc -h 192.168.1.10 prev > /dev/null");
+			if (action) {
+				tuning_action();
+				action--;
+			} 
+			show_current_cursor_pos ();
+			old_enc_data=end_data;
+		}
+		
+		
+		if (!read_gpio(11) && !but_was_press) {
+			system("clear");
+			printf("Button pressed\n");
+			system("mpc toggle > /dev/null");
+			
+			but_was_press++;
+		}
+		if (read_gpio(11) && but_was_press) {
+			system("clear");
+			printf("Button unpressed\n");
+			but_was_press--;
+		}
+		usleep(1);
 	}
-	endwin();
 	pthread_mutex_unlock(&mutex);
 }
 
@@ -480,32 +540,10 @@ void *show_current_track() {
 
 
 int main() {
-/*
-Смотри внизу полезняшки!!!
- */
-	printf("Trololo!\n");
 	if (initcomport()<0) 
 		return -1;
 	clear_scr();
-/*
-	parsing_addscript("addradio.sh");
-	printf("\n");
-	for(i=0;i<stations;i++) {
-		printf("%s\n",station_name[i]);
-	}
-*/
 
-/*
-	struct sigaction act;
-	act.sa_handler = show_current_track; //Передаём параметр сигнала
-	sigaction (SIGALRM, & act, 0);
-*/
-
-/*
-	signal(SIGALRM, show_current_track);
-	signal(SIGALRM, SIG_IGN);          // ignore this signal      
-	ualarm (500000, 0);
-*/
 	int result;
 	pthread_t thread1;
 	result = pthread_create( &thread1, NULL, &show_current_track, NULL);
@@ -525,62 +563,3 @@ int main() {
 }
 
 
-
-
-/*
-	char *s, *s1, *s2;
-	s1 = strdup(" text0 ");
-	s2 = strdup(" text1 ");
-	s = malloc(STR_BUFFLEN);
-	memset (s,'\0',STR_BUFFLEN);
-	// *s="\0";    //Я инициализирую строки так это - 
-	//намного быстрее вызовов strcpy 
-	strcat(s,s1); //Функция strcat
-	strcat(s,s2); 
-	printf("%s\n", s);
-
-	free(s1);
-	free(s2);
-	free(s);
-*/
-
-
-
-
-
-
-
-
-/*
- #include <stdio.h>
-#include <iconv.h>
-#include <errno.h>
-#include <err.h>
-int main() {
-  iconv_t cd;
-  size_t k, f, t;
-  int se;
-  const char *code = "Вопрос!";
-  const char* in = code;
-  char buf[100];
-  char* out = buf;
-
-  cd = iconv_open("cp1251", "koi8-r");
-  if( cd == (iconv_t)(-1) )
-	err( 1, "iconv_open" );
-  f = strlen(code);
-  t = sizeof buf;
-  memset( &buf, 0, sizeof buf );
-  errno = 0;
-  k = iconv(cd, &in, &f, &out, &t);
-  se = errno;
-  printf( "converted: %u,error=%d\n", (unsigned) k, se );
-
-  printf("string: %s\n", buf);
-
-  iconv_close(cd);
-  return 0;
-}
-
- * 
- */
