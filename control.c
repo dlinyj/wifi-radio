@@ -17,7 +17,8 @@
 //#define HOME
 
 #define STR_BUFFLEN 128
-#define COM_PORT_NAME "/dev/ttyUSB0"
+//#define COM_PORT_NAME "/dev/ttyUSB0"
+#define COM_PORT_NAME "/dev/ttyACM0"
 
 static int mainfd=0;				/* File descriptor of COM-port*/
 static int tun_disp_position=1; //Позиция символа настройки на экране
@@ -32,12 +33,7 @@ static pthread_mutex_t last_time_action_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 
 int initcomport(void)
-{
-//*****************************************************************************
-//******************init COM-port**********************************************
-	//int mainfd=0;                                       /* File descriptor */
- 
-	struct termios options;
+{	struct termios options;
 	mainfd = open(COM_PORT_NAME, O_RDWR | O_NOCTTY | O_NDELAY);
 	if (mainfd == -1)
 	{                                                       /* Could not open the port */
@@ -68,8 +64,6 @@ int initcomport(void)
 	options.c_lflag &= ~(ICANON | ECHO | ISIG);
 /* Set the new options for the port */
 	tcsetattr(mainfd, TCSANOW, &options);
-//*****************************************************************************
-//*****************************************************************************
 	return mainfd;
 }
 
@@ -151,31 +145,26 @@ void send_cmd(char * buf, int len, char *cmd, int cat_len){
 }
 
 void get_title (char * buf, int len) { //название для всех
-	//send_cmd(buf, len, "echo \"currentsong\" | nc localhost 6600 | grep -e \"^Title: \"", 7);//название для всех
-	send_cmd(buf, len, "echo \"currentsong\" | nc 192.168.1.10 6600 | grep -e \"^Title: \"", 7);//название для всех
+	send_cmd(buf, len, "echo \"currentsong\" | nc localhost 6600 | grep -e \"^Title: \"", 7);//название для всех
 }
 
 void get_name (char * buf, int len) { //Это для радиостанций
-	//send_cmd(buf, len, "echo \"currentsong\" | nc localhost 6600 | grep -e \"^Name: \"", 6);//Это для радиостанций
-	send_cmd(buf, len, "echo \"currentsong\" | nc 192.168.1.10 6600 | grep -e \"^Name: \"", 6);//Это для радиостанций
+	send_cmd(buf, len, "echo \"currentsong\" | nc localhost 6600 | grep -e \"^Name: \"", 6);//Это для радиостанций
 }
 
 void get_artist (char * buf, int len) { //Это для артистов
-	//send_cmd(buf, len, "echo \"currentsong\" | nc localhost 6600 | grep -e \"^Artist: \"", 8);//Это для артистов
-	send_cmd(buf, len, "echo \"currentsong\" | nc 192.168.1.10 6600 | grep -e \"^Artist: \"", 8);//Это для артистов
+	send_cmd(buf, len, "echo \"currentsong\" | nc localhost 6600 | grep -e \"^Artist: \"", 8);//Это для артистов
  }
 
 int get_number_curent_song () {
 	char buf[128];
-	//send_cmd(buf, 128, "echo \"status\" | nc localhost 6600 | grep -e \"^song: \"", 6);//Получаем текущую позицию
-	send_cmd(buf, 128, "echo \"status\" | nc 192.168.1.10 6600 | grep -e \"^song: \"", 6);//Получаем текущую позицию
+	send_cmd(buf, 128, "echo \"status\" | nc localhost 6600 | grep -e \"^song: \"", 6);//Получаем текущую позицию
 	return atoi(buf);
 }
 
 int get_playlistlength () {
 	char buf[128];
-	//send_cmd(buf, 128, "echo \"status\" | nc localhost 6600 | grep -e \"^playlistlength: \"", 16);//Получаем длинну плей-листа
-	send_cmd(buf, 128, "echo \"status\" | nc 192.168.1.10 6600 | grep -e \"^playlistlength: \"", 16);//Получаем длинну плей-листа
+	send_cmd(buf, 128, "echo \"status\" | nc localhost 6600 | grep -e \"^playlistlength: \"", 16);//Получаем длинну плей-листа
 	return atoi(buf);
 }
 
@@ -210,41 +199,26 @@ int playlist_len, curent_song_pos;
 double delta_step;
 
 void get_cur_position () {
-	//Здеся мы и должны получить позицию!
 	playlist_len=get_playlistlength();
-//	printw("playlist_len=%d\n",playlist_len);
 	curent_song_pos=get_number_curent_song();
-//	printw("curent_song_pos=%d\n",curent_song_pos);
-	//delta_step=(double)99/(double)(playlist_len-1);
 	delta_step=(double)100/(double)(playlist_len);
-
-//	printw("delta_step=%f\n",delta_step);
-//	printw("curent position =%d\n", (int)(delta_step*curent_song_pos));
 	tun_disp_position=(int)(delta_step*curent_song_pos/5)+1;
-//	printw("tun_disp_position=%d\n",tun_disp_position);
 	tun_char_position=(int)(delta_step*curent_song_pos)%5+1;
-//	printw("tun_char_position=%d\n\n",tun_char_position);
 }
 
 void show_current_cursor_pos () {
 	clear_scr();
 	home_scr();
-	//get_cur_position ();
 	print_to_scr ("\x1B\x25\x01"); //Разрешение юзверских шрифтов
 	set_to_position_scr(8, 2);
 	print_to_scr ("SEARCH"); //Поиск
 
-
-
-//И тута будем много-много ДУМАТЬ
-	//printw("tun_disp_position=%d\n", tun_disp_position);
 	if (tun_disp_position !=10) {
 		set_to_position_scr(tun_disp_position, 1); //устанавливаем курсор в текущую позицию
 	} else {
 		set_to_position_scr(9, 1);
 		print_to_scr (" ");
 	}
-	//set_to_position_scr(9, 1); //устанавливаем курсор в текущую позицию
 	reload_char(tun_char_position); //загружаем символ
 	print_to_scr ("\xA0\x08"); //Печааем палку и возвращаем курсор взад
 	
@@ -259,11 +233,7 @@ void tuning_action() {
  * sation_pos=(tun_disp_position-1)*5+tun_char_position
  * */
 	pthread_mutex_lock(&mutex);
-	//show_current_cursor_pos ();
-
 }
-
-
 
 int action=1;
 time_t last_time_action;
@@ -312,13 +282,14 @@ void tunning () {
 		//return EXIT_FAILURE;
 		exit(1);
 	}
-
 	int newpos=0;
 	int enc_state=0;
 	
 	int end_data=0;
 	int old_enc_data=0;
 	int but_was_press=0;
+
+	char command_buff [255]={0};
 
 	while (1) {
 
@@ -362,8 +333,13 @@ void tunning () {
 			last_time_action = time(NULL);
 			get_cur_position ();
 			if (playlist_len!=(curent_song_pos+1)) {
-				//system("mpc next > /dev/null");
-				system("mpc -h 192.168.1.10 next > /dev/null");
+				system("mpc next > /dev/null");
+				/*
+				//sprintf(command_buff,"mpc play %d > /dev/null", curent_song_pos+1);
+				sprintf(command_buff,"mpc play %d", curent_song_pos+2);
+				printf("%s\n",command_buff);
+				system(command_buff);
+				*/
 			}
 			if (action) {
 				tuning_action();
@@ -381,8 +357,17 @@ void tunning () {
 			
 			last_time_action = time(NULL);
 			get_cur_position ();
-			//system("mpc prev > /dev/null");
-			system("mpc -h 192.168.1.10 prev > /dev/null");
+			system("mpc prev > /dev/null");
+			/*
+			if (curent_song_pos!=0) {
+				//system("mpc next > /dev/null");
+				//sprintf(command_buff,"mpc play %d > /dev/null", curent_song_pos-1);
+				sprintf(command_buff,"mpc play %d", curent_song_pos);
+				printf("%s\n",command_buff);
+				system(command_buff);
+			}
+			*/
+			
 			if (action) {
 				tuning_action();
 				action--;
@@ -395,8 +380,7 @@ void tunning () {
 		if (!read_gpio(11) && !but_was_press) {
 			system("clear");
 			printf("Button pressed\n");
-			//system("mpc toggle > /dev/null");
-			system("mpc  -h 192.168.1.10 toggle > /dev/null");
+			system("mpc toggle > /dev/null");
 			
 			but_was_press++;
 		}
