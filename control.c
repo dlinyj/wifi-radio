@@ -19,6 +19,7 @@
 #define STR_BUFFLEN 128
 //#define COM_PORT_NAME "/dev/ttyUSB0"
 #define COM_PORT_NAME "/dev/ttyACM0"
+#define CLRSCR() printf("\033[H\033[J");
 
 static int mainfd=0;				/* File descriptor of COM-port*/
 static int tun_disp_position=1; //Позиция символа настройки на экране
@@ -249,8 +250,8 @@ void *KOSTYLI() {
 			search_status++;
 			pthread_mutex_unlock(&mutex);
 		}
-	}
 	sleep(1);
+	}
 }
 
 int read_gpio(int gpio) {
@@ -272,27 +273,10 @@ int read_gpio(int gpio) {
 	}
 }
 
-//For PC with ncurses and keyboard!!!
-void tunning () {
-	int result;
-	pthread_t thread1;
-	result = pthread_create( &thread1, NULL, &KOSTYLI, NULL);
-	if (result != 0) {
-		perror("Creating the first thread");
-		//return EXIT_FAILURE;
-		exit(1);
-	}
-	int newpos=0;
-	int enc_state=0;
-	
-	int end_data=0;
-	int old_enc_data=0;
-	int but_was_press=0;
-
-	char command_buff [255]={0};
-
-	while (1) {
-
+	int get_gpio_pos() {
+		static 	int newpos=0;
+		static int enc_state=0;
+		int end_data=0;
 		newpos = (read_gpio(18)<<1)+read_gpio(20);
 
 		switch(enc_state)
@@ -325,21 +309,43 @@ void tunning () {
 			}
 		 
 		enc_state = newpos;
+		return end_data;
+	}
 
+//For PC with ncurses and keyboard!!!
+void tunning () {
+	int result;
+	pthread_t thread1;
+	result = pthread_create( &thread1, NULL, &KOSTYLI, NULL);
+	if (result != 0) {
+		perror("Creating the first thread");
+		//return EXIT_FAILURE;
+		exit(1);
+	}
+
+	
+	int end_data=0;
+	int old_enc_data=0;
+	int but_was_press=0;
+
+	char command_buff [255]={0};
+
+	while (1) {
+
+		end_data+=get_gpio_pos();
 		if (end_data-old_enc_data>=4) {
-			system("clear");
+			//system("clear");
+			CLRSCR();
 			printf("Right\n");
 
 			last_time_action = time(NULL);
 			get_cur_position ();
 			if (playlist_len!=(curent_song_pos+1)) {
-				system("mpc next > /dev/null");
-				/*
+				//system("mpc next > /dev/null");
 				//sprintf(command_buff,"mpc play %d > /dev/null", curent_song_pos+1);
 				sprintf(command_buff,"mpc play %d", curent_song_pos+2);
 				printf("%s\n",command_buff);
 				system(command_buff);
-				*/
 			}
 			if (action) {
 				tuning_action();
@@ -357,8 +363,7 @@ void tunning () {
 			
 			last_time_action = time(NULL);
 			get_cur_position ();
-			system("mpc prev > /dev/null");
-			/*
+			//system("mpc prev > /dev/null");
 			if (curent_song_pos!=0) {
 				//system("mpc next > /dev/null");
 				//sprintf(command_buff,"mpc play %d > /dev/null", curent_song_pos-1);
@@ -366,7 +371,6 @@ void tunning () {
 				printf("%s\n",command_buff);
 				system(command_buff);
 			}
-			*/
 			
 			if (action) {
 				tuning_action();
@@ -377,20 +381,20 @@ void tunning () {
 		}
 		
 		
-		if (!read_gpio(11) && !but_was_press) {
+		if (!read_gpio(7) && !but_was_press) {
 			system("clear");
 			printf("Button pressed\n");
 			system("mpc toggle > /dev/null");
 			
 			but_was_press++;
 		}
-		if (read_gpio(11) && but_was_press) {
+		if (read_gpio(7) && but_was_press) {
 			system("clear");
 			printf("Button unpressed\n");
 			
 			but_was_press--;
 		}
-		usleep(1);
+		usleep(100);
 	}
 	pthread_mutex_unlock(&mutex);
 }

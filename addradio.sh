@@ -1,7 +1,7 @@
 #! /bin/sh -
 # Some configuration settings
 VOLUME=60
-mpc volume $VOLUME	# adjust this to suit your speakers/amplifier
+#mpc volume $VOLUME	# adjust this to suit your speakers/amplifier
 mpc clear	# clear current playlist
 
 mpc add http://relay3.slayradio.org:8000/						#*Slay Radio
