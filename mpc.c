@@ -47,7 +47,8 @@ int get_playlistlength () {
 
 void set_play_list_position(int position) {
 	char command_buff [255]={0};
-	sprintf(command_buff,"mpc play %d", position);
+	//sprintf(command_buff,"mpc play %d > /dev/null", position);
+	sprintf(command_buff,"mpc play %d ", position);
 	system(command_buff);
 }
 

@@ -16,6 +16,9 @@
 #include <sys/stat.h>
 
 #define ENCODER_COM_PORT "/dev/ttyUSB0"
+//#define ENCODER_COM_PORT "/dev/tty"
+
+
 
 static int encoder_comport_fd =0;
 
@@ -32,9 +35,8 @@ int init_encoder_comport(void) {
 	}
 
 	/* Configure port reading */
-	fcntl(encoder_comport_fd, F_SETFL, FNDELAY); 	//read com-port not bloking
-	//fcntl(mainfd, F_SETFL, 0); 	//read com-port is the bloking
-	
+	//fcntl(encoder_comport_fd, F_SETFL, 0); 	//read com-port is the bloking
+	fcntl(encoder_comport_fd, F_SETFL, FNDELAY);  //read com-port not bloking
 	
 /* Get the current options for the port */
 	tcgetattr(encoder_comport_fd, &options);
@@ -49,30 +51,16 @@ int init_encoder_comport(void) {
 	options.c_cflag &= ~CRTSCTS;						/* Disable hardware flow control */  
  
 /* Enable data to be processed as raw input */
-	options.c_lflag &= ~(ICANON | ECHO | ISIG);
+	//options.c_lflag &= ~(ICANON | ECHO | ISIG);
+	options.c_lflag &= ~(ICANON | ECHO);
 /* Set the new options for the port */
 	tcsetattr(encoder_comport_fd, TCSANOW, &options);
 	return encoder_comport_fd;
 }
 
 char encoder_read(void) {
-/*	struct pollfd fds[1];
-	fds[0].fd = encoder_comport_fd;
-	fds[0].events = POLLIN ;
-	int pollrc = poll( fds, 1, -1);
-	
 	char chout;
-	if (pollrc < 0){
-		perror("poll");
-		exit(-1);
-	}
-	else if( pollrc > 0){
-		if( fds[0].revents & POLLIN ) {
-				read(encoder_comport_fd, &chout, 1);       
-		}
-	}
-*/	
-	char chout;
+/*
 	ssize_t symbols;
 	symbols=read(encoder_comport_fd, &chout, 1);
 	if (symbols>0) {
@@ -80,4 +68,14 @@ char encoder_read(void) {
 	} else {
 		return '\0';
 	}
+*/
+	struct pollfd fds;
+	fds.fd=encoder_comport_fd;
+	fds.events = POLLIN;
+	poll(&fds, 1, 500);
+	if(fds.revents & POLLIN) {
+		read(encoder_comport_fd, &chout, 1);
+		return chout;
+	}
+	return '\0'; //timeout
 }
