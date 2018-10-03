@@ -2,25 +2,21 @@
 #include <stdlib.h>  /* Standard General Utilities Library */
 #include <string.h>  /* String function definitions */
 #include <unistd.h>  /* UNIX standard function definitions */
-#include <fcntl.h>   /* File control definitions */
 #include <errno.h>   /* Error number definitions */
-#include <termios.h> /* POSIX terminal control definitions */
-#include <signal.h> 
-#include <pthread.h>
-#include <semaphore.h>
 #include <time.h>
-#include <sys/poll.h>
-#include <sys/types.h>
-#include <sys/stat.h>
 
 #include "mpc.h"
 #include "display.h"
-#include "encoder.h"
+#include "uart.h"
 #include "term.h"
 
 #define CLRSCR() fputs("\033[H\033[J", stdout);
 //#define home() 			fputs(ESC "[H", stdout) //Move cursor to the indicated row, column (origin at 1,1)
 #define BUFF_LEN 256
+
+//#define ENCODER_COM_PORT "/dev/ttyUSB0"
+#define ENCODER_COM_PORT "/dev/tty"
+#define ENCODER_COM_SPEED 9600
 
 
 void show_current_track() {
@@ -48,17 +44,17 @@ void show_current_track() {
 		
 		get_title (cmp_buf_title, BUFF_LEN);
 		if (strcmp(cmp_buf_title,curent_buf_title) != 0) {
-			print_title(cmp_buf_title); //terminal
+//			print_title(cmp_buf_title); //terminal
 			strcpy(curent_buf_title, cmp_buf_title);
 			curent_title_position=0;
 			strlen_title=strlen(curent_buf_title);
 		}
 
 		get_name (cmp_buf_name, BUFF_LEN);
-		print_name(cmp_buf_name); //terminal
+//		print_name(cmp_buf_name); //terminal
 		if (strlen(cmp_buf_name)==0) {
 			get_artist(cmp_buf_name, BUFF_LEN);
-			print_artist(cmp_buf_name); //terminal
+//			print_artist(cmp_buf_name); //terminal
 		}
 
 		if (strcmp(cmp_buf_name,curent_buf_name) != 0) {
@@ -112,19 +108,20 @@ void show_current_track() {
 			set_to_position_scr(1, 2);
 			print_to_scr (show);
 		}
-		usleep (500000);
-		//sleep(1);
+//		usleep (500000);
+//		sleep(1);
 	
 }
 
 void tunning () {
 	char chout='\n';
 	int action=1;
-	time_t last_time_action, current_time;
-	init_encoder_comport();
+	time_t last_time_action, current_time, last_time;
+	int encoder_fd = init_comport(ENCODER_COM_PORT, ENCODER_COM_SPEED);
 	init_term();
+	last_time = time(NULL); 
 	while (1) {
-		chout=encoder_read();
+		read_com(encoder_fd, 1 , 100, &chout);
 		if ((chout=='R') || (chout=='L') ||(chout=='a') || (chout=='d')) {
 				action=0;
 				last_time_action = time(NULL);
@@ -133,20 +130,19 @@ void tunning () {
 				show_current_cursor_pos (); 
 		}
 		if ((chout=='P') ||(chout=='s') ) {
-				//CLRSCR();
 				print_button_pressed();
 				MUSIC_PAUSE();
 		}
+		chout = '\0';
+		current_time = time(NULL); 
 		if (action==0) {
-			current_time = time(NULL); 
 			if ((current_time-last_time_action)>3) {
 				action++;
 			}
 		}
-		if (action) {
+		if ((action) && ((current_time-last_time)>0)) {
 			show_current_track();
-			
-			print_display_table (); //terminal
+			last_time = current_time; 
 		}
 	}
 

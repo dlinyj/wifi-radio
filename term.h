@@ -67,4 +67,4 @@ void term_print_to_scr (char * message);
 void term_clear_scr(void);
 
 
-#endif /*__TERM_EXAMPLE__*/
+#endif //__TERM_EXAMPLE__

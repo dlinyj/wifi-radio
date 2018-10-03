@@ -22,26 +22,26 @@ void send_cmd(char * buf, int len, char *cmd, int cat_len){
 }
 
 void get_title (char * buf, int len) { //название для всех
-	send_cmd(buf, len, "echo \"currentsong\" | nc localhost 6600 | grep -e \"^Title: \"", 7);//название для всех
+	send_cmd(buf, len, "echo \"currentsong\" | nc -q0 localhost 6600 | grep -e \"^Title: \"| iconv -c -f UTF-8 -t CP866", 7);//название для всех
 }
 
 void get_name (char * buf, int len) { //Это для радиостанций
-	send_cmd(buf, len, "echo \"currentsong\" | nc localhost 6600 | grep -e \"^Name: \"", 6);//Это для радиостанций
+	send_cmd(buf, len, "echo \"currentsong\" | nc -q0 localhost 6600 | grep -e \"^Name: \"| iconv -c -f UTF-8 -t CP866", 6);//Это для радиостанций
 }
 
 void get_artist (char * buf, int len) { //Это для артистов
-	send_cmd(buf, len, "echo \"currentsong\" | nc localhost 6600 | grep -e \"^Artist: \"", 8);//Это для артистов
+	send_cmd(buf, len, "echo \"currentsong\" | nc -q0 localhost 6600 | grep -e \"^Artist: \"| iconv -c -f UTF-8 -t CP866", 8);//Это для артистов
  }
 
 int get_number_curent_song () {
 	char buf[128];
-	send_cmd(buf, 128, "echo \"status\" | nc localhost 6600 | grep -e \"^song: \"", 6);//Получаем текущую позицию
+	send_cmd(buf, 128, "echo \"status\" | nc -q0 localhost 6600 | grep -e \"^song: \"| iconv -c -f UTF-8 -t CP866", 6);//Получаем текущую позицию
 	return atoi(buf);
 }
 
 int get_playlistlength () {
 	char buf[128];
-	send_cmd(buf, 128, "echo \"status\" | nc localhost 6600 | grep -e \"^playlistlength: \"", 16);//Получаем длинну плей-листа
+	send_cmd(buf, 128, "echo \"status\" | nc -q0 localhost 6600 | grep -e \"^playlistlength: \"", 16);//Получаем длинну плей-листа
 	return atoi(buf);
 }
 
@@ -52,7 +52,7 @@ void set_play_list_position(int position) {
 	system(command_buff);
 }
 
-
+/*
 #define	MAX_LINE_SIZE 256
 
 int parsing_addscript(char *filename)
@@ -75,7 +75,7 @@ int parsing_addscript(char *filename)
 			printf("line %d is too long in config file", lineno);
 			continue;
 		}
-		/* Remove the '\n' */
+		// Remove the '\n'
 		inbuf[len-1] = '\0';
 		//printf("string=%s\n",inbuf);
 		system(inbuf); //run the script!
@@ -90,4 +90,4 @@ int parsing_addscript(char *filename)
 	fclose(instream);
 	return rv;
 }
-
+*/

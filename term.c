@@ -69,8 +69,9 @@ void print_display_table () {
 		  "└────────────────────┘\n"
 		  "*12345678901234567890*\n", stdout);
 	*/
-		puts("*12345678901234567890*\n"
-		     "┌────────────────────┐\n");
+		puts("*12345678901234567890*");
+		gotoxy(0,10);
+		puts("┌────────────────────┐");
 		gotoxy(0,11);
 		puts("│");
 		gotoxy(22,11);
@@ -80,8 +81,9 @@ void print_display_table () {
 		gotoxy(22,12);
 		puts("│");
 		gotoxy(0,13);
-		puts("└────────────────────┘\n"
-		  "*12345678901234567890*\n");
+		puts("└────────────────────┘");
+		gotoxy(0,14);
+		puts("*12345678901234567890*");
 }
 
 
@@ -135,9 +137,7 @@ void init_term () {
 	clrscr();
 	set_display_atrib(BRIGHT);
 	set_display_atrib(F_RED);
-	
 	hide_the_cursor(); 
-	
 	print_display_table ();
 }
 

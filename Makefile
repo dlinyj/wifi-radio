@@ -1,28 +1,25 @@
-# Makefile for Hello World project
+# Makefile for Wifi-radio
 
 TARGET = control
+
 CC = gcc
-#CC = /home/dlinyj/tplink/wrt/staging_dir/toolchain-mips_34kc_gcc-4.8-linaro_uClibc-0.9.33.2/bin/mips-openwrt-linux-gcc
-#CC = mips-openwrt-linux-gcc
-LDFLAGS = -lpthread
-LDFLAGS += -D_REENTERANT
-#LDFLAGS += -lncurses
+#CFLAGS = -Wall 
+#CFLAGS += -g
+#CFLAGS += -O3
+CFLAGS += -D__DEBUG__
 
-SRC = $(TARGET).c
-SRC += mpc.c
-SRC += encoder.c
-SRC += display.c
+OBJ = $(TARGET).o    \
+	mpc.o \
+	display.o \
+	main.o \
+	term.o \
+	uart.o
 
-OBJ = $(SRC:.c=.o)
+%.o : %.c
+	$(CC) -c $(CFLAGS) $< -o $@ $(LDFLAGS)
 
-all: $(TARGET)
-	
-$(TARGET): obj
-	#$(CC) -Wall -o $(TARGET) -g $(OBJ) $(LDFLAGS)
-	$(CC) -o $(TARGET) -g $(OBJ) $(LDFLAGS)
-	#strip $(TARGET)
+$(TARGET): $(OBJ)
+	$(CC) -o $@ $^ $(CFLAGS) $(LIBS) $(LDFLAGS)
 
-obj: $(SRC)
-	$(CC) -Wall -c -g $(SRC) 
 clean:
-	rm -f *.o $(TARGET) 
+	rm -f *.o *.su $(TARGET) 
