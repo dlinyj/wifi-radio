@@ -6,6 +6,7 @@
 #include <termios.h> 
 
 #include "term.h"
+#include "charset_coverter.h"
 /*
 1. Curent position + playlist len
 2-4 - mpc
@@ -25,6 +26,7 @@
 */
 static int x=0,y=0;
 static struct termios oldt;
+
 
 void print_cur_pos_len (int position, int len) {
 	home();
@@ -49,13 +51,6 @@ void print_button_pressed () {
 	fflush(stdout);
 }
 
-void print_title_name_artist(int pos, char * mess) {
-	gotoxy(0,pos);
-	eraceline();
-	set_display_atrib(F_GREEN);
-	fputs(mess, stdout);
-	fflush(stdout);
-}
 
 
 void print_display_table () {
@@ -63,11 +58,11 @@ void print_display_table () {
 	set_display_atrib(F_YELLOW);
 	/*
 	fputs("*12345678901234567890*\n"
-		  "┌────────────────────┐\n"
-		  "│                    │\n"
-  		  "│                    │\n"
-		  "└────────────────────┘\n"
-		  "*12345678901234567890*\n", stdout);
+			"┌────────────────────┐\n"
+			"│                    │\n"
+			"│                    │\n"
+			"└────────────────────┘\n"
+			"*12345678901234567890*\n", stdout);
 	*/
 		puts("*12345678901234567890*");
 		gotoxy(0,10);
@@ -88,13 +83,24 @@ void print_display_table () {
 
 
 void term_set_to_position_scr(int xt, int yt) { //(8, 2);
-		gotoxy(xt+1,yt+10);
-	}
+	gotoxy(xt+1,yt+10);
+}
+
 void term_print_to_scr (char * message) {
-		set_display_atrib(F_CYAN);
-		puts(message);
-		fflush(stdout);
-	}
+	set_display_atrib(F_CYAN);
+	char * buf = convert_charset(message, "cp866","utf-8" );
+	printf("%s", buf);
+	fflush(stdout);
+	free(buf);
+}
+
+void print_title_name_artist(int pos, char * mess) {
+	gotoxy(0,pos);
+	eraceline();
+	set_display_atrib(F_GREEN);
+	fputs(mess, stdout);
+	fflush(stdout);
+}
 
 void term_clear_scr() {
 	term_set_to_position_scr(1,1);

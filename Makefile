@@ -13,7 +13,8 @@ OBJ = $(TARGET).o    \
 	display.o \
 	main.o \
 	term.o \
-	uart.o
+	uart.o \
+	charset_coverter.o
 
 %.o : %.c
 	$(CC) -c $(CFLAGS) $< -o $@ $(LDFLAGS)

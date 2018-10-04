@@ -26,6 +26,25 @@
 	# define CRTSCTS  020000000000		// flow control
 #endif
 
+#define BLOCK_FLAG 		0
+#define NOT_BLOCK_FLAG 	1
+
+int set_nonblock_flag (int desc, int value){
+	int oldflags = fcntl (desc, F_GETFL, 0);
+	/* If reading the flags failed, return error indication now. */
+	if (oldflags == -1) {
+		return -1;
+	}
+	/* Set just the flag we want to set. */
+	if (value != 0) {
+		oldflags |= O_NONBLOCK;
+	} else {
+		oldflags &= ~O_NONBLOCK;
+	}
+	/* Store modified flag word in the descriptor. */
+	return fcntl (desc, F_SETFL, oldflags);
+}
+
 // converts integer baud to Linux define
 static int get_baud(int baud)
 {
@@ -80,9 +99,6 @@ int init_comport(const char *comport, int baud){
 	int fd = 0;										/* File descriptor */
 	struct termios options;
 	fd = open(comport, O_RDWR | O_NOCTTY | O_NDELAY);
-
-
-
 	if (fd < 0){														/* Could not open the port */
 		fprintf(stderr, "open_port: Unable to open %s - %s\n", comport,
 		strerror(errno));
@@ -91,8 +107,11 @@ int init_comport(const char *comport, int baud){
 	}
 
 	/* Configure port reading */
+	set_nonblock_flag(fd, BLOCK_FLAG);
 	//fcntl(fd, F_SETFL, 0); 	//read com-port is the bloking
-	fcntl(fd, F_SETFL, FNDELAY);  //read com-port not bloking
+	
+	//fcntl(fd, F_SETFL, FNDELAY);  //read com-port not bloking
+	
 	//fcntl(fd, F_SETFL, O_NDELAY);  //read com-port not bloking
 	//ioctl(fd, FIOASYNC, 1);
 	
@@ -124,10 +143,10 @@ int init_comport(const char *comport, int baud){
 
 
 // Добавлено для проверки
-//	options.c_cc[VMIN]  = 60;
-//	options.c_cc[VTIME] = 1; 
+	options.c_cc[VMIN]  = 60;
+	options.c_cc[VTIME] = 1; 
 	
-	options.c_iflag |= IGNBRK;
+//	options.c_iflag |= IGNBRK;
 //	options.c_lflag &= ~ISIG;
 //До этого момента всё завелось
 /*

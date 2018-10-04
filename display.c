@@ -4,6 +4,8 @@
 #include <unistd.h>  /* UNIX standard function definitions */
 #include <fcntl.h>   /* File control definitions */
 #include <errno.h>   /* Error number definitions */
+#include <termios.h>
+
 
 #include "mpc.h"
 #include "display.h"
@@ -23,7 +25,7 @@
 #define DISP_COM_SPEED 9600
 
 #define STR_BUFFLEN 128
-
+#define WRITE_TIMEOUT 1000
 static int mainfd=0;				/* File descriptor of COM-port*/
 static volatile int tun_disp_position=1; //Позиция символа настройки на экране
 static volatile int tun_char_position=1; //Текущий символ настройки
@@ -40,25 +42,21 @@ static int curent_song_pos;			//текущая позикия в плей лис
  * */
 
 
-
-//Этот пиздец надо переписать!!!
 void send_cmd_to_display (char * s) {
-	int i;
-	for (i=0;i<65535;i++) {
-		if (s[i]!='\0') {
-			write(mainfd,&s[i],1);
-			/*
-			if(s[i]==',') {
-				write(mainfd,"\x1F,",2);
-				continue;
-			}
-			if(s[i]=='.') {
-				write(mainfd,"\x1F.",2);
-				continue;
-			}
-			*/
-
-		} else break;
+	int i=0;
+	while (s[i]!='\0') {
+		write(mainfd,&s[i],1);
+		/*
+		if(s[i]==',') {
+			write(mainfd,"\x1F,",2);
+			continue;
+		}
+		if(s[i]=='.') {
+			write(mainfd,"\x1F.",2);
+			continue;
+		}
+		*/
+		i++;
 	}
 }
 
@@ -73,7 +71,8 @@ void clear_scr() {
 #endif
 	char *s;
 	s = strdup("\x0C"); 
-	write(mainfd,s,strlen(s));
+	//write(mainfd,s,strlen(s));
+	write_com(mainfd, s, strlen(s), WRITE_TIMEOUT);
 	free(s);
 }
 
@@ -83,7 +82,8 @@ void home_scr() {
 #endif
 	char *s;
 	s = strdup("\x1B[H"); 
-	write(mainfd,s,strlen(s));
+	//write(mainfd,s,strlen(s));
+	write_com(mainfd, s, strlen(s), WRITE_TIMEOUT);
 	free(s);
 }
 
@@ -96,7 +96,8 @@ void set_to_position_scr(char col, char str){
 	s[1]='\x24';
 	s[2]=col;
 	s[3]=str;
-	write(mainfd,s,4);
+	//write(mainfd,s,4);
+	write_com(mainfd, s, 4, WRITE_TIMEOUT);
 }
 
 void print_to_scr (char * s) {
@@ -203,17 +204,14 @@ void tuning_movement (char left_right) {
 	if (((left_right=='L') ||(left_right=='a')) && (curent_song_pos!=1)){
 		curent_song_pos--;
 	}
+#ifdef _TERMINAL_DEBUG_
 	print_cur_pos_len (curent_song_pos, playlist_len); //term
-	set_play_list_position(curent_song_pos);
+#endif
+	set_play_list_position(curent_song_pos);  //mpc
 	show_current_cursor_pos (); 
 }
 
 int init_display () {
-/*	
-	if (init_display_comport()<0) {
-		return -1;
-	}
-*/
 	mainfd = init_comport(COM_PORT_NAME,DISP_COM_SPEED);
 	if (mainfd < 0) {
 		return -1;
