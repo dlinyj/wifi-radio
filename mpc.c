@@ -44,7 +44,6 @@ int init_mpc (void) {
 	}
 	memset(buf, 0, BUF_SIZE);
 	read(sock, buf, BUF_SIZE-1);
-	fprintf(stderr, "%s\n",buf);
 	return sock;
 }
 
@@ -73,7 +72,6 @@ static void send_cmd_get_request (char * cmd, char * request) {
 }
 
 void get_all (output_t * output_st) {
-	fprintf(stderr, "get_all\n\r");
 	static char tmp_buff [BUF_SIZE];
 	send_cmd_get_request("currentsong\n", tmp_buff);
 	
