@@ -1,93 +1,187 @@
-#include <stdio.h>   /* Standard input/output definitions */
-#include <stdlib.h>  /* Standard General Utilities Library */
-#include <string.h>  /* String function definitions */
-#include <unistd.h>  /* UNIX standard function definitions */
+#include <stdio.h>
+#include <stdlib.h>
+#include <errno.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netdb.h> 
+#include <unistd.h>
+#include <fcntl.h>
 
-static int stations=0;
+#include "charset_coverter.h"
+#include "output.h"
 
-char station_name[100][256];
+#define HOSTNAME "localhost"
+#define PORT 6600
 
-void send_cmd(char * buf, int len, char *cmd, int cat_len){
-	FILE* ptr;
-	//char *cmd = "echo \"currentsong\" | nc localhost 6600 | grep -e \"^Title: \""; //название для всех
-	char *s;
-	s = malloc(len+cat_len);
-	memset (s,'\0',len+cat_len);
-	if ((ptr = popen (cmd, "r")) != NULL)
-		fgets (s, len+7, ptr);
-	if (strlen(s)>0) s[strlen(s)-1]='\0';
-	strcpy(buf,&s[cat_len]);
-	free (s);
-	pclose(ptr);
+static int sock;
+
+int init_mpc (void) {
+	int port = PORT;
+	struct sockaddr_in serv_addr;
+	struct hostent *server;
+	char buf[BUF_SIZE];
+
+	sock = socket(AF_INET, SOCK_STREAM, 0);
+	if (sock < 0) {
+		fprintf(stderr, "socket() failed: %d", errno);
+		exit(1);
+	}
+	//
+	server = gethostbyname(HOSTNAME);
+	if (server == NULL) {
+		fprintf(stderr, "Host not found\n");
+		return EXIT_FAILURE;
+	}
+	memset((char *) &serv_addr, 0, sizeof(serv_addr));
+	serv_addr.sin_family = AF_INET;
+	memcpy(&serv_addr.sin_addr.s_addr, server->h_addr, server->h_length);
+	serv_addr.sin_port = htons(port);
+	if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
+		fprintf(stderr, "connect() failed: %d", errno);
+		exit(1);
+	}
+	memset(buf, 0, BUF_SIZE);
+	read(sock, buf, BUF_SIZE-1);
+	fprintf(stderr, "%s\n",buf);
+	return sock;
 }
 
-void get_title (char * buf, int len) { //название для всех
-	send_cmd(buf, len, "echo \"currentsong\" | nc -q0 localhost 6600 | grep -e \"^Title: \"| iconv -c -f UTF-8 -t CP866", 7);//название для всех
+char * foud_text_in_string (char * where_found, char * word) {
+	static char tmp_buf[BUF_SIZE] = {0};
+	char * ret = tmp_buf;
+	char * tmp = strstr(where_found, word );
+	if (tmp != NULL) {
+		tmp += strlen(word);
+		while ((* tmp != '\n') && (* tmp != '\r')) {
+			*ret = *tmp;
+			ret ++;
+			tmp ++;
+		}
+		*ret = '\0';
+	} else {
+		tmp_buf[0] = '\0';
+	}
+	return tmp_buf;
+
 }
 
-void get_name (char * buf, int len) { //Это для радиостанций
-	send_cmd(buf, len, "echo \"currentsong\" | nc -q0 localhost 6600 | grep -e \"^Name: \"| iconv -c -f UTF-8 -t CP866", 6);//Это для радиостанций
+static void send_cmd_get_request (char * cmd, char * request) {
+	write(sock, cmd, strlen(cmd));
+	read(sock, request, BUF_SIZE-1);
 }
 
-void get_artist (char * buf, int len) { //Это для артистов
-	send_cmd(buf, len, "echo \"currentsong\" | nc -q0 localhost 6600 | grep -e \"^Artist: \"| iconv -c -f UTF-8 -t CP866", 8);//Это для артистов
- }
-
-int get_number_curent_song () {
-	char buf[128];
-	send_cmd(buf, 128, "echo \"status\" | nc -q0 localhost 6600 | grep -e \"^song: \"| iconv -c -f UTF-8 -t CP866", 6);//Получаем текущую позицию
-	return atoi(buf);
+void get_all (output_t * output_st) {
+	fprintf(stderr, "get_all\n\r");
+	static char tmp_buff [BUF_SIZE];
+	send_cmd_get_request("currentsong\n", tmp_buff);
+	
+	char * tmp;
+	tmp = convert_charset(foud_text_in_string(tmp_buff,"Title: "), "utf-8", "cp866");
+	if (tmp != NULL) {
+		mistake_correctioin(tmp);
+		strcpy(output_st->title, tmp);
+		free(tmp);
+	} else {
+		memset(output_st->title, ' ', 20);
+		output_st->title[21] = '\0';
+	}
+	tmp = convert_charset(foud_text_in_string(tmp_buff,"Name: "), "utf-8", "cp866");
+	if (tmp != NULL) {
+		mistake_correctioin(tmp);
+		strcpy(output_st->name, tmp);
+		free(tmp);
+	} else {
+		memset(output_st->name, ' ', 20);
+		output_st->name[21] = '\0';
+	}
+	tmp = convert_charset(foud_text_in_string(tmp_buff,"Artist: "), "utf-8", "cp866");
+	if (tmp != NULL) {
+		mistake_correctioin(tmp);
+		strcpy(output_st->artist, tmp);
+		free(tmp);
+	}else {
+		memset(output_st->artist, ' ', 20);
+		output_st->artist[21] = '\0';
+	}
+	send_cmd_get_request("status\n", tmp_buff);
+	tmp = foud_text_in_string(tmp_buff,"playlistlength: ");
+	if (tmp != NULL) {
+		output_st->playlistlength = atoi(tmp);
+	} else {
+		output_st->playlistlength = 0;
+	}
+	tmp = foud_text_in_string(tmp_buff,"song: ");
+	if (tmp != NULL) {
+		output_st->currentsong = atoi(tmp);
+	} else  {
+		output_st->currentsong = 0;
+	}
 }
 
-int get_playlistlength () {
-	char buf[128];
-	send_cmd(buf, 128, "echo \"status\" | nc -q0 localhost 6600 | grep -e \"^playlistlength: \"", 16);//Получаем длинну плей-листа
-	return atoi(buf);
+output_t * init_output_st (void ){
+	static output_t output_st = {0};
+	memset(output_st.title, '\0', BUF_SIZE-1);
+	memset(output_st.name, '\0', BUF_SIZE-1);
+	memset(output_st.artist, '\0', BUF_SIZE-1);
+	output_st.currentsong = 0;
+	output_st.playlistlength = 0;
+	return &output_st;
 }
 
-void set_play_list_position(int position) {
-	char command_buff [255]={0};
-	//sprintf(command_buff,"mpc play %d > /dev/null", position);
-	sprintf(command_buff,"mpc play %d ", position);
-	system(command_buff);
+#ifdef OLD_VERSION
+static void get_from_cursong (char * buf, char * position ) {
+	static char tmp_buff [BUF_SIZE];
+	send_cmd_get_request("currentsong\n", tmp_buff);
+	char * tmp = convert_charset(foud_text_in_string(tmp_buff,position), "utf-8", "cp866");
+	strcpy(buf,tmp);
+	mistake_correctioin(buf);
+	free(tmp);
 }
 
-/*
-#define	MAX_LINE_SIZE 256
+static void get_title (char * buf) { //название для всех
+	get_from_cursong(buf, "Title: ");
+}
 
-int parsing_addscript(char *filename)
-{
-	FILE *instream;
-	char inbuf[MAX_LINE_SIZE];
-	int  rv = 0;
-	int lineno = 0;
-	int i;
-	instream = fopen(filename, "r");
-	if (instream == NULL) {
-		printf("Unable to open config file '%s': %m\n", filename);
+static void get_name (char * buf) { //Это для радиостанций
+	get_from_cursong(buf, "Name: ");
+}
+
+static void get_artist (char *buf) {
+	get_name(buf);
+}
+
+static int get_from_status(char * type_str) {
+	static char tmp_buff[BUF_SIZE];
+	send_cmd_get_request("status\n", tmp_buff);
+	char * tmp = foud_text_in_string(tmp_buff,type_str);
+	if (tmp != NULL) {
+		return atoi(tmp);
+	} else {
 		return -1;
 	}
-
-	while (fgets(inbuf, MAX_LINE_SIZE, instream) != NULL) {
-		int len = strlen(inbuf);
-		if (inbuf[len-1] != '\n') {
-			lineno++;
-			printf("line %d is too long in config file", lineno);
-			continue;
-		}
-		// Remove the '\n'
-		inbuf[len-1] = '\0';
-		//printf("string=%s\n",inbuf);
-		system(inbuf); //run the script!
-		for (i=0;i<len;i++) 
-			if((inbuf[0] !='#') && (inbuf[i]=='#') && (inbuf[i+1]=='*')) { //Если не комментарий, стоит решётка и затем звезда
-				strcpy(station_name[stations],&inbuf[i+2]); 
-				stations++;
-				break;
-			}
-
-	}
-	fclose(instream);
-	return rv;
 }
-*/
+
+static int get_number_curent_song () {
+	return get_from_status("song: ");
+}
+
+static int get_playlistlength () {
+	return get_from_status("playlistlength: ");
+}
+#endif //OLD_VERSION
+
+void set_play_list_position(int position) {
+	char command_buff [BUF_SIZE];
+	char tmp_buff [BUF_SIZE];
+	sprintf(command_buff,"play %d\n", position);
+	send_cmd_get_request(command_buff, tmp_buff);
+}
+
+void music_pause (void)  {
+	char tmp_buff [BUF_SIZE];
+	send_cmd_get_request("pause\n", tmp_buff);
+}
+
+

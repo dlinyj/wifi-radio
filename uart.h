@@ -18,7 +18,7 @@ int init_comport(const char *comport, int baud);
 	* @buff  buffer for read
 	* @retval size of data peing placed in ringbuffer
 	*/
-int read_com(int fd, int len , int timeout, uint8_t * buff);
+int read_com(int fd, int len , int timeout, char * buff);
 /**
 	* @brief  writes into comport
 	* @param  fd : comport file descriptor
@@ -27,7 +27,7 @@ int read_com(int fd, int len , int timeout, uint8_t * buff);
 	* @param  timeout : time to wait for port to be free, ms
 	* @retval 1 - success, 0 - fail
 	*/
-int write_com(int fd, uint8_t * buf, size_t size, int timeout);
+int write_com(int fd, char * buf, size_t size, int timeout);
 
 int init_rs485 (int fd);
 int set_rts(int fd, int on);

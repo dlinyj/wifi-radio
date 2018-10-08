@@ -10,53 +10,62 @@
 #include "uart.h"
 #include "term.h"
 
+#include "output.h"
+
+
+
 #define CLRSCR() fputs("\033[H\033[J", stdout);
 //#define home() 			fputs(ESC "[H", stdout) //Move cursor to the indicated row, column (origin at 1,1)
-#define BUFF_LEN 256
+#define BUFF_LEN 1024
 
 //#define ENCODER_COM_PORT "/dev/ttyUSB0"
 #define ENCODER_COM_PORT "/dev/tty"
+//#define ENCODER_COM_PORT "/dev/null"
 #define ENCODER_COM_SPEED 9600
 
 
-void show_current_track() {
+void show_current_track(output_t * output_st) {
 		/*
 		get_title (char * buf, int len)//название для всех
 		get_name (char * buf, int len) //Это для радиостанций (название радио)
 		get_artist (char * buf, int len)  //Это для артистов
 		*/
 		
-		//У дисплея есть режим Specify horizontal scroll mode - разобраться.
+		//У дисплея есть режим Specify horizontal scroll mode - разобраться. <1F><03>
 
-		char cmp_buf_title[BUFF_LEN]; 
+		//char cmp_buf_title[BUFF_LEN]; 
+		//char cmp_buf_title1[BUFF_LEN]; 
+		char * cmp_buf_title; 
 		static char curent_buf_title[BUFF_LEN];
+		
 		static int curent_title_position;
 		static int strlen_title;
 		
 		
-		char cmp_buf_name[BUFF_LEN];
+		//char cmp_buf_name[BUFF_LEN];
+		char * cmp_buf_name;
 		static char curent_buf_name[BUFF_LEN];
 		static int curent_name_position;
 		static int strlen_name;
 		
 		char show [21];
 		show [20]='\0';
-		
-		get_title (cmp_buf_title, BUFF_LEN);
+
+		//get_title (cmp_buf_title1);
+		cmp_buf_title = output_st->title;
 		if (strcmp(cmp_buf_title,curent_buf_title) != 0) {
-//			print_title(cmp_buf_title); //terminal
 			strcpy(curent_buf_title, cmp_buf_title);
 			curent_title_position=0;
 			strlen_title=strlen(curent_buf_title);
 		}
 
-		get_name (cmp_buf_name, BUFF_LEN);
-//		print_name(cmp_buf_name); //terminal
-		if (strlen(cmp_buf_name)==0) {
-			get_artist(cmp_buf_name, BUFF_LEN);
-//			print_artist(cmp_buf_name); //terminal
+		//get_name (cmp_buf_name);
+		cmp_buf_name = output_st->name;
+		if (strlen(cmp_buf_name) == 0) {
+			//get_artist(cmp_buf_name);
+			cmp_buf_name = output_st->artist;
 		}
-
+		
 		if (strcmp(cmp_buf_name,curent_buf_name) != 0) {
 			strcpy(curent_buf_name, cmp_buf_name);
 			curent_name_position=0;
@@ -108,30 +117,46 @@ void show_current_track() {
 			set_to_position_scr(1, 2);
 			print_to_scr (show);
 		}
-//		usleep (500000);
-//		sleep(1);
-	
 }
 
-void tunning () {
+int main() {
 	char chout='\n';
 	int action=1;
 	time_t last_time_action, current_time, last_time;
+	
+	if (init_mpc () == 0) {
+		printf("Error init mpc\n");
+		exit (-1);
+	}
+
+	output_t * output_st = init_output_st ();
+
+	while (init_display(output_st)) {
+		printf("Error display\n");
+		sleep (1);
+	}
+
+	set_cirilic ();
+	clear_scr();
+
+
 	int encoder_fd = init_comport(ENCODER_COM_PORT, ENCODER_COM_SPEED);
 	init_term();
 	last_time = time(NULL); 
 	while (1) {
+		get_all (output_st);
 		read_com(encoder_fd, 1 , 100, &chout);
 		if ((chout=='R') || (chout=='L') ||(chout=='a') || (chout=='d')) {
 				action=0;
 				last_time_action = time(NULL);
-				get_cur_position (); //display.c
-				tuning_movement(chout); //display.c
-				show_current_cursor_pos (); 
+				get_cur_position (); 
+				//Тут проблема!!!
+				set_play_list_position(tuning_movement(chout)); 
+				show_current_cursor_pos ();
 		}
 		if ((chout=='P') ||(chout=='s') ) {
 				print_button_pressed();
-				MUSIC_PAUSE();
+				music_pause();
 		}
 		chout = '\0';
 		current_time = time(NULL); 
@@ -141,7 +166,7 @@ void tunning () {
 			}
 		}
 		if ((action) && ((current_time-last_time)>0)) {
-			show_current_track();
+			show_current_track(output_st);
 			last_time = current_time; 
 		}
 	}

@@ -188,7 +188,7 @@ void set_blocking (int fd, int should_block){
 	* @buff  buffer for read
 	* @retval size of data peing placed in ringbuffer
 	*/
-int read_com(int fd, int len , int timeout, uint8_t * buff){
+int read_com(int fd, int len , int timeout, char * buff){
 	int ret = 0;
 	
 	struct pollfd fds;
@@ -213,7 +213,7 @@ int read_com(int fd, int len , int timeout, uint8_t * buff){
 	* @param  timeout : time to wait for port to be free, ms
 	* @retval 1 - success, 0 - fail
 	*/
-int write_com(int fd, uint8_t * buf, size_t size, int timeout){
+int write_com(int fd, char * buf, size_t size, int timeout){
 //	tcflush(fd, TCIOFLUSH);
 	int ret = 0;
 

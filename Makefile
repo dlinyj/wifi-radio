@@ -3,15 +3,14 @@
 TARGET = control
 
 CC = gcc
-#CFLAGS = -Wall 
+CFLAGS = -Wall 
 #CFLAGS += -g
 #CFLAGS += -O3
-CFLAGS += -D__DEBUG__
+#CFLAGS += -D__DEBUG__
 
 OBJ = $(TARGET).o    \
 	mpc.o \
 	display.o \
-	main.o \
 	term.o \
 	uart.o \
 	charset_coverter.o

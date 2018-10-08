@@ -12,13 +12,16 @@ char *convert_charset(char *str, const char *from, const char *to) {
 	size_t   buf_sz, out_left, in_left;
 	iconv_t  conv = (iconv_t) -1;
 	size_t   converted;
-
+	if (!str) {
+		goto on_error;
+	}
 	in_left = strlen(str);
 
 	/* Initial buffer for conversion. */
 	buf = malloc(BUF_SZ);
-	if (!buf)
+	if (!buf) {
 		goto on_error;
+	}
 	buf_sz = BUF_SZ;
 	out = buf;
 	out_left = BUF_SZ - 1 /* '\0' */;
@@ -65,5 +68,29 @@ on_error:
 }
 
 void mistake_correctioin (char * buf) {
-	
+	while (* buf != '\0') {
+		switch (*buf) {
+			case (char)0x9A: //Ь -> Ъ
+				*buf = 0x9C;
+				break;
+			case (char)0x9C: //Ъ -> Ь
+				*buf = 0x9A;
+				break;
+			case (char)0xEA: //ь -> ъ
+				*buf = 0xEC;
+				break;
+			case (char)0xEC: //ъ -> ь
+				*buf = 0xEA;
+				break;
+			case (char)0xF1: //хз (ё) -> е
+				*buf = 0xA5;
+				break;
+			case (char)0xF0: //хз (Ё) -> Е
+				*buf = 0x85;
+				break;
+			default:
+				break;
+		}
+		buf++;
+	}
 }

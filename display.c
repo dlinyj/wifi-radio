@@ -10,12 +10,15 @@
 #include "mpc.h"
 #include "display.h"
 #include "uart.h"
+#include "output.h"
 
 #define _TERMINAL_DEBUG_
 
 #ifdef _TERMINAL_DEBUG_
 #include "term.h"
 #endif
+
+#define __DEBUG__
 
 #ifndef __DEBUG__
 #define COM_PORT_NAME "/dev/ttyACM0"
@@ -24,22 +27,11 @@
 #endif //__DEBUG__
 #define DISP_COM_SPEED 9600
 
-#define STR_BUFFLEN 128
 #define WRITE_TIMEOUT 1000
+
 static int mainfd=0;				/* File descriptor of COM-port*/
-static volatile int tun_disp_position=1; //Позиция символа настройки на экране
-static volatile int tun_char_position=1; //Текущий символ настройки
 
-static int playlist_len;			//Длинна плей листа (получается из mpc)
-static int curent_song_pos;			//текущая позикия в плей листе (получается из mpc)
-
- /*
- * Напоминание 
- * tun_disp_position Позиция символа настройки на экране
- * tun_char_position Текущий символ настройки
- * Вычисление позиции станции идёт по следующей формуле
- * sation_pos=(tun_disp_position-1)*5+tun_char_position
- * */
+output_t * output_st = NULL;
 
 
 void send_cmd_to_display (char * s) {
@@ -60,6 +52,9 @@ void send_cmd_to_display (char * s) {
 	}
 }
 
+void set_overwrite_mode (void) {
+	send_cmd_to_display("\x1F\x03");
+}
 
 void set_cirilic (void) {
 	send_cmd_to_display("\x1B\x74\x06");
@@ -113,54 +108,59 @@ void reload_char(int i) {
 	for(j=0;j<5;j++)
 		switch (i)
 		{
-			case 1: send_cmd_to_display ("\x1B\x26\xA0\x21\x84\x10\x42\x80"); //Загрузка шрифта символ первой палочки OK 
+			case 1: send_cmd_to_display ("\x1B\x26\xFD\x21\x84\x10\x42\x80"); //Загрузка шрифта символ первой палочки OK 
 					break;
-			case 2: send_cmd_to_display ("\x1B\x26\xA0\x42\x08\x21\x84\x80"); //Загрузка шрифта символ 2 палочки OK
+			case 2: send_cmd_to_display ("\x1B\x26\xFD\x42\x08\x21\x84\x80"); //Загрузка шрифта символ 2 палочки OK
 					break;
-			case 3: send_cmd_to_display ("\x1B\x26\xA0\x84\x10\x42\x08\x81"); //Загрузка шрифта символ 3 палочки OK
+			case 3: send_cmd_to_display ("\x1B\x26\xFD\x84\x10\x42\x08\x81"); //Загрузка шрифта символ 3 палочки OK
 					break;
-			case 4: send_cmd_to_display ("\x1B\x26\xA0\x08\x21\x84\x10\x82"); //Загрузка шрифта символ 4 палочки OK
+			case 4: send_cmd_to_display ("\x1B\x26\xFD\x08\x21\x84\x10\x82"); //Загрузка шрифта символ 4 палочки OK
 					break;
-			case 5: send_cmd_to_display ("\x1B\x26\xA0\x10\x42\x08\x21\x84"); //Загрузка шрифта символ 5 палочки OK
+			case 5: send_cmd_to_display ("\x1B\x26\xFD\x10\x42\x08\x21\x84"); //Загрузка шрифта символ 5 палочки OK
 			default:      ;
 		
 		}
 }
 
 void move_symb_left () {
-	if ((tun_disp_position>1) || (tun_char_position>1)) {
-		tun_char_position--;
-		if (tun_char_position<1) {
-			tun_char_position=5;
-			tun_disp_position--;
+	if ((output_st->tun_disp_position>1) || (output_st->tun_char_position>1)) {
+		output_st->tun_char_position--;
+		if (output_st->tun_char_position<1) {
+			output_st->tun_char_position=5;
+			output_st->tun_disp_position--;
 			send_cmd_to_display ("\x08  \x08\x08"); //Move cursor left and space
 			}
-		reload_char(tun_char_position);
-		send_cmd_to_display ("\xA0\x08"); //Печааем палку и возвращаем курсор взад
+		reload_char(output_st->tun_char_position);
+		send_cmd_to_display ("\xFD\x08"); //Печааем палку и возвращаем курсор взад
 	}
 }
 
 void move_symb_right () {
-	if ((tun_disp_position<20) || (tun_char_position<5)) {
-		tun_char_position++;
-		if (tun_char_position>5) {
-			tun_char_position=1;
-			tun_disp_position++;
+	if ((output_st->tun_disp_position<20) || (output_st->tun_char_position<5)) {
+		output_st->tun_char_position++;
+		if (output_st->tun_char_position>5) {
+			output_st->tun_char_position=1;
+			output_st->tun_disp_position++;
 			send_cmd_to_display ("\x08  "); //Move cursor left and space
 			}
-		reload_char(tun_char_position);
-		send_cmd_to_display ("\xA0\x08"); //Печааем палку и возвращаем курсор взад
+		reload_char(output_st->tun_char_position);
+		send_cmd_to_display ("\xFD\x08"); //Печааем палку и возвращаем курсор взад
 	}
 }
 
 /*Здесь идёт вызов из mpc!*/
 void get_cur_position () {
+/*
 	double delta_step;
 	playlist_len=get_playlistlength(); //внешний вызов
 	//curent_song_pos=get_number_curent_song(); //внешний вызов
 	delta_step=(double)99/(double)(playlist_len-1);
 	tun_disp_position=(int)(delta_step*(curent_song_pos-1)/5)+1;
 	tun_char_position=(int)(delta_step*(curent_song_pos-1)+0.5)%5+1;
+*/
+	output_st->delta_step = (double)99/(double)(output_st->playlistlength-1);
+	output_st->tun_disp_position=(int)(output_st->delta_step*(output_st->currentsong)/5)+1;
+	output_st->tun_char_position=(int)(output_st->delta_step*(output_st->currentsong)+0.5)%5+1;
 
 #ifdef _TERMINAL_DEBUG_
 	set_display_atrib(F_WHITE);
@@ -168,7 +168,8 @@ void get_cur_position () {
 	printf("delta_step=%f \
 			\n\rtun_disp_position=%d \
 			\n\rtun_char_position=%d", 
-			delta_step,tun_disp_position,tun_char_position);
+			output_st->delta_step,output_st->tun_disp_position,output_st->tun_char_position);
+	fflush(stdout);
 #endif
 }
 
@@ -178,45 +179,46 @@ void show_current_cursor_pos () {
 	send_cmd_to_display ("\x1B\x25\x01"); //Разрешение юзверских шрифтов
 	set_to_position_scr(8, 2);
 	print_to_scr ("SEARCH"); //Поиск
-	if (tun_disp_position !=10) {
-		set_to_position_scr(tun_disp_position, 1); //устанавливаем курсор в текущую позицию
+	if (output_st->tun_disp_position !=10) {
+		set_to_position_scr(output_st->tun_disp_position, 1); //устанавливаем курсор в текущую позицию
 	} else {
 		set_to_position_scr(9, 1);
 		print_to_scr (" ");
 	}
 
-	reload_char(tun_char_position); //загружаем символ
-	send_cmd_to_display ("\xA0\x08"); //Печааем палку и возвращаем курсор взад
-	char ch;
-	//sprintf(&ch, "%d",tun_char_position);
-	ch = (char)tun_char_position + 0x30;
+	reload_char(output_st->tun_char_position); //загружаем символ
+	send_cmd_to_display ("\xFD\x08"); //Печааем палку и возвращаем курсор взад
 #ifdef _TERMINAL_DEBUG_
+	char ch;
+	ch = (char)output_st->tun_char_position + 0x30;
 	term_print_to_scr (&ch);
 #endif
 
 }
-/*Здесь идёт вызов из mpc!*/
-void tuning_movement (char left_right) {
-	get_cur_position ();
-	if (((left_right=='R') || (left_right=='d')) && (playlist_len!=(curent_song_pos))){
+//Какая-то лажня с вычислением позиций в крайнем правом положении
+int tuning_movement (char left_right) {
+	int curent_song_pos = output_st->currentsong;
+	if (((left_right=='R') || (left_right=='d')) && (output_st->playlistlength!=(output_st->currentsong+1))){
 		curent_song_pos++;
 	}
-	if (((left_right=='L') ||(left_right=='a')) && (curent_song_pos!=1)){
-		curent_song_pos--;
+	if (((left_right=='L') ||(left_right=='a')) && (output_st->currentsong!=0)){
+		//curent_song_pos--;
+		curent_song_pos-=2;
 	}
 #ifdef _TERMINAL_DEBUG_
-	print_cur_pos_len (curent_song_pos, playlist_len); //term
+	print_cur_pos_len (curent_song_pos+1, output_st->playlistlength); //term
+	fflush(stdout);
 #endif
-	set_play_list_position(curent_song_pos);  //mpc
-	show_current_cursor_pos (); 
+	return curent_song_pos;
 }
 
-int init_display () {
+int init_display (output_t * output_st_ext) {
 	mainfd = init_comport(COM_PORT_NAME,DISP_COM_SPEED);
 	if (mainfd < 0) {
 		return -1;
 	}
+	output_st = output_st_ext;
 	clear_scr();
-	curent_song_pos=get_number_curent_song()+1; //внешний вызов
+	//curent_song_pos=get_number_curent_song()+1; //внешний вызов
 	return 0;
 }
