@@ -13,26 +13,23 @@
 #include "output.h"
 
 #define _TERMINAL_DEBUG_
+//#define __DEBUG__
 
 #ifdef _TERMINAL_DEBUG_
 #include "term.h"
 #endif
 
-#define __DEBUG__
+#define COM_PORT_NAME 			"/dev/ttyACM0"
+#define DEFINE_COM_PORT_NAME 	"/dev/null"
 
-#ifndef __DEBUG__
-#define COM_PORT_NAME "/dev/ttyACM0"
-#else
-#define COM_PORT_NAME "/dev/null"
-#endif //__DEBUG__
+
 #define DISP_COM_SPEED 9600
-
 #define WRITE_TIMEOUT 1000
 
-static int mainfd=0;				/* File descriptor of COM-port*/
-
+static int mainfd=0;
 output_t * output_st = NULL;
 
+static int curent_song_pos = 1;
 
 void send_cmd_to_display (char * s) {
 	int i=0;
@@ -66,7 +63,6 @@ void clear_scr() {
 #endif
 	char *s;
 	s = strdup("\x0C"); 
-	//write(mainfd,s,strlen(s));
 	write_com(mainfd, s, strlen(s), WRITE_TIMEOUT);
 	free(s);
 }
@@ -77,7 +73,6 @@ void home_scr() {
 #endif
 	char *s;
 	s = strdup("\x1B[H"); 
-	//write(mainfd,s,strlen(s));
 	write_com(mainfd, s, strlen(s), WRITE_TIMEOUT);
 	free(s);
 }
@@ -91,7 +86,6 @@ void set_to_position_scr(char col, char str){
 	s[1]='\x24';
 	s[2]=col;
 	s[3]=str;
-	//write(mainfd,s,4);
 	write_com(mainfd, s, 4, WRITE_TIMEOUT);
 }
 
@@ -148,7 +142,6 @@ void move_symb_right () {
 	}
 }
 
-/*Здесь идёт вызов из mpc!*/
 void get_cur_position () {
 /*
 	double delta_step;
@@ -158,9 +151,15 @@ void get_cur_position () {
 	tun_disp_position=(int)(delta_step*(curent_song_pos-1)/5)+1;
 	tun_char_position=(int)(delta_step*(curent_song_pos-1)+0.5)%5+1;
 */
+/*
 	output_st->delta_step = (double)99/(double)(output_st->playlistlength-1);
 	output_st->tun_disp_position=(int)(output_st->delta_step*(output_st->currentsong)/5)+1;
 	output_st->tun_char_position=(int)(output_st->delta_step*(output_st->currentsong)+0.5)%5+1;
+*/
+
+	output_st->delta_step = (double)99/(double)(output_st->playlistlength-1);
+	output_st->tun_disp_position=(int)(output_st->delta_step*(curent_song_pos)/5)+1;
+	output_st->tun_char_position=(int)(output_st->delta_step*(curent_song_pos)+0.5)%5+1;
 
 #ifdef _TERMINAL_DEBUG_
 	set_display_atrib(F_WHITE);
@@ -197,13 +196,22 @@ void show_current_cursor_pos () {
 }
 //Какая-то лажня с вычислением позиций в крайнем правом положении
 int tuning_movement (char left_right) {
-	int curent_song_pos = output_st->currentsong;
+	//int curent_song_pos = output_st->currentsong;
+/*
 	if (((left_right=='R') || (left_right=='d')) && (output_st->playlistlength!=(output_st->currentsong+1))){
 		curent_song_pos++;
 	}
 	if (((left_right=='L') ||(left_right=='a')) && (output_st->currentsong!=0)){
 		//curent_song_pos--;
 		curent_song_pos-=2;
+	}
+*/
+	if (((left_right=='R') || (left_right=='d')) && (output_st->playlistlength!=(curent_song_pos+1))){
+		curent_song_pos++;
+	}
+	//left
+	if (((left_right=='L') ||(left_right=='a')) && (curent_song_pos!=0)){
+		curent_song_pos--;
 	}
 #ifdef _TERMINAL_DEBUG_
 	print_cur_pos_len (curent_song_pos+1, output_st->playlistlength); //term
@@ -213,9 +221,13 @@ int tuning_movement (char left_right) {
 }
 
 int init_display (output_t * output_st_ext) {
-	mainfd = init_comport(COM_PORT_NAME,DISP_COM_SPEED);
-	if (mainfd < 0) {
-		return -1;
+	if (cfileexists(COM_PORT_NAME)) {
+		mainfd = init_comport(COM_PORT_NAME,DISP_COM_SPEED);
+		if (mainfd < 0) {
+			return -1;
+		}
+	} else {
+		mainfd = init_comport(DEFINE_COM_PORT_NAME,DISP_COM_SPEED);
 	}
 	output_st = output_st_ext;
 	clear_scr();

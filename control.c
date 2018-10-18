@@ -18,9 +18,10 @@
 //#define home() 			fputs(ESC "[H", stdout) //Move cursor to the indicated row, column (origin at 1,1)
 #define BUFF_LEN 1024
 
-//#define ENCODER_COM_PORT "/dev/ttyUSB0"
-#define ENCODER_COM_PORT "/dev/tty"
-//#define ENCODER_COM_PORT "/dev/null"
+#define ENCODER_COM_PORT			"/dev/ttyACM1"
+//#define ENCODER_COM_PORT 			"/dev/ttyUSB0"
+#define DEFAULT_ENCODER_COM_PORT 	"/dev/tty"
+
 #define ENCODER_COM_SPEED 9600
 
 
@@ -36,6 +37,7 @@ void show_current_track(output_t * output_st) {
 		//char cmp_buf_title[BUFF_LEN]; 
 		//char cmp_buf_title1[BUFF_LEN]; 
 		char * cmp_buf_title; 
+		char spacestr []=  "                    ";
 		static char curent_buf_title[BUFF_LEN];
 		
 		static int curent_title_position;
@@ -63,7 +65,11 @@ void show_current_track(output_t * output_st) {
 		cmp_buf_name = output_st->name;
 		if (strlen(cmp_buf_name) == 0) {
 			//get_artist(cmp_buf_name);
-			cmp_buf_name = output_st->artist;
+			if (strlen(output_st->artist) != 0) {
+				cmp_buf_name = output_st->artist;
+			} else {
+				cmp_buf_name = spacestr;
+			}
 		}
 		
 		if (strcmp(cmp_buf_name,curent_buf_name) != 0) {
@@ -138,9 +144,14 @@ int main() {
 
 	set_cirilic ();
 	clear_scr();
+	
+	int encoder_fd = 0;
+	if (cfileexists(ENCODER_COM_PORT)) {
+		encoder_fd = init_comport(ENCODER_COM_PORT, ENCODER_COM_SPEED);
+	} else {
+		encoder_fd = init_comport(DEFAULT_ENCODER_COM_PORT, ENCODER_COM_SPEED);
+	}
 
-
-	int encoder_fd = init_comport(ENCODER_COM_PORT, ENCODER_COM_SPEED);
 	init_term();
 	last_time = time(NULL); 
 	while (1) {
@@ -149,9 +160,8 @@ int main() {
 		if ((chout=='R') || (chout=='L') ||(chout=='a') || (chout=='d')) {
 				action=0;
 				last_time_action = time(NULL);
-				get_cur_position (); 
-				//Тут проблема!!!
 				set_play_list_position(tuning_movement(chout)); 
+				get_cur_position (); 
 				show_current_cursor_pos ();
 		}
 		if ((chout=='P') ||(chout=='s') ) {
@@ -170,9 +180,4 @@ int main() {
 			last_time = current_time; 
 		}
 	}
-
 }
-
-
-
-

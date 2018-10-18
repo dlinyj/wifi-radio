@@ -8,6 +8,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <unistd.h>
+#include <sys/stat.h>
 
 #include <termios.h> /* POSIX terminal control definitions */
 #include <linux/serial.h>
@@ -43,6 +44,19 @@ int set_nonblock_flag (int desc, int value){
 	}
 	/* Store modified flag word in the descriptor. */
 	return fcntl (desc, F_SETFL, oldflags);
+}
+
+/*
+ * Check if a file exist using stat() function
+ * return 1 if the file exist otherwise return 0
+ */
+int cfileexists(const char* filename){
+	struct stat buffer;
+	int exist = stat(filename,&buffer);
+	if(exist == 0)
+		return 1;
+	else // -1
+		return 0;
 }
 
 // converts integer baud to Linux define
@@ -109,9 +123,7 @@ int init_comport(const char *comport, int baud){
 	/* Configure port reading */
 	set_nonblock_flag(fd, BLOCK_FLAG);
 	//fcntl(fd, F_SETFL, 0); 	//read com-port is the bloking
-	
 	//fcntl(fd, F_SETFL, FNDELAY);  //read com-port not bloking
-	
 	//fcntl(fd, F_SETFL, O_NDELAY);  //read com-port not bloking
 	//ioctl(fd, FIOASYNC, 1);
 	

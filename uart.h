@@ -3,6 +3,12 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+/*
+ * Check if a file exist using stat() function
+ * return 1 if the file exist otherwise return 0
+ */
+int cfileexists(const char* filename);
+
 /**
 	* @brief  inittialize comport
 	* @param  comport : string value represents com device, examle: "/dev/ttyUSB0"
