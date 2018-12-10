@@ -1,6 +1,6 @@
 # Проект wifi-radio на базе mpd с выводом на дисплей PD-2600 #
 
-![Внешний вид](https://github.com/dlinyj/wifi-radio/images/0001.jpg)
+![Внешний вид](https://github.com/dlinyj/wifi-radio/tree/master/images/0001.jpg)
 
 Проект в стадии разработки вывода на дисплей покупателя PD-2600 и управление станциями с помощью энкодера.
 
