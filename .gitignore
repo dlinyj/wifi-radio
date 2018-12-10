@@ -1,5 +1,2 @@
 *.o
-nohup.out
-logfile.csv
-.go*
-*.su0
+control
