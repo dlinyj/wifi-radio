@@ -4,6 +4,7 @@
 #include <unistd.h>  /* UNIX standard function definitions */
 #include <errno.h>   /* Error number definitions */
 #include <time.h>
+#include <sys/time.h> // for clock_gettime()
 
 #include "mpc.h"
 #include "display.h"
@@ -125,12 +126,16 @@ void show_current_track(output_t * output_st) {
 		}
 }
 
+unsigned int usec_used(struct timeval * t_start, struct timeval * t_end) {
+	return (((t_end->tv_sec - t_start->tv_sec) * 1000000) + t_end->tv_usec) - (t_start->tv_usec);
+}
+
 int main() {
 	char chout='\n';
 	int action=1;
 	time_t last_time_action, current_time, last_time;
 	
-	if (init_mpc () == 0) {
+	if ( init_mpc () == 0) {
 		printf("Error init mpc\n");
 		exit (-1);
 	}
@@ -154,9 +159,12 @@ int main() {
 
 	init_term();
 	last_time = time(NULL); 
+
+	int count_click = 0;
+	struct timeval t_start, t_end;
 	while (1) {
 		get_all (output_st);
-		read_com(encoder_fd, 1 , 100, &chout);
+		int ret_read = read_com(encoder_fd, 1 , 100, &chout);
 		if ((chout=='R') || (chout=='L') ||(chout=='a') || (chout=='d')) {
 				action=0;
 				last_time_action = time(NULL);
@@ -165,9 +173,27 @@ int main() {
 				show_current_cursor_pos ();
 		}
 		if ((chout=='P') ||(chout=='s') ) {
+			gettimeofday(&t_end, NULL);
+			if(!count_click) {
+				t_start = t_end;
+				count_click++;
+			} else {
+				if (usec_used (&t_start, &t_end) <= 500000) {
+					double_click_button();
+				} 
+				count_click = 0;
+			}
+		}
+
+		if (count_click) {
+			gettimeofday(&t_end, NULL);
+			if (usec_used (&t_start, &t_end) > 500000) 	{
 				print_button_pressed();
 				music_pause();
+				count_click = 0;
+			}
 		}
+
 		chout = '\0';
 		current_time = time(NULL); 
 		if (action==0) {

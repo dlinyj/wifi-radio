@@ -38,14 +38,28 @@ void print_cur_pos_len (int position, int len) {
 }
 
 void print_button_pressed () {
-	static int button=0;
+	static int button = 0;
 	gotoxy(0,8);
 	set_display_atrib(F_RED);
 	if (!button) {
-		fputs("Button pressed", stdout);
+		fputs("Button pressed             ", stdout);
 		button++;
 	} else {
-		fputs("Button unpressed", stdout);
+		fputs("Button unpressed           ", stdout);
+		button--;
+	}
+	fflush(stdout);
+}
+
+void double_click_button () {
+	static int button = 0;
+	gotoxy(0,8);
+	set_display_atrib(F_RED);
+	if (!button) {
+		fputs("Double click press            ", stdout);
+		button++;
+	} else {
+		fputs("Double click unpressed        ", stdout);
 		button--;
 	}
 	fflush(stdout);

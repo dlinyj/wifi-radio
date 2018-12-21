@@ -10,12 +10,12 @@ mpc add http://shouthost.com.19.streams.bassdrive.com:8200		#*BassDrive
 mpc add http://fr1.streamhosting.ch:8080						#*lounge-radio.com
 mpc add http://www.partyvibe.com:8008/							#*chilout
 mpc add http://us-tx1.streams.bassdrive.com:9000/				#*DnBHeaven.com
-mpc add http://80.94.69.106:6404/ 								#*Liquid DnB DI.FM
-mpc add http://91.121.236.242:80/								#*POLSKASTACJA.PL
+#mpc add http://80.94.69.106:6404/ 								#*Liquid DnB DI.FM
+#mpc add http://91.121.236.242:80/								#*POLSKASTACJA.PL
 mpc add http://uk2.internet-radio.com:31491						#*AmbientRadio.org
 mpc add http://www.partyvibe.com:8010/							#*PARTY VIBE RADIO
-mpc add http://streamer.psyradio.org:8120						#*psyradio chillout
-mpc add http://radio01-cn03.akadostream.ru:8000/russianradio1..
+#mpc add http://streamer.psyradio.org:8120						#*psyradio chillout
+#mpc add http://radio01-cn03.akadostream.ru:8000/russianradio1..
 mpc add http://radio.oneex.ru:9000/8234
 mpc add http://radio.dline-media.com/ppr128.mp3
 

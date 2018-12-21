@@ -55,6 +55,7 @@ void init_term (void);
 void exit_term (void);
 void print_cur_pos_len (int position, int len);
 void print_button_pressed (void);
+void double_click_button (void);
 void print_title_name_artist(int pos, char * mess);
 void print_display_table(void);
 
