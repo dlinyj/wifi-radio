@@ -25,6 +25,33 @@
 
 #define ENCODER_COM_SPEED 9600
 
+void show_current_time_and_date (void) {
+	time_t t ; 
+	struct tm *tmp ; 
+
+	char show [21];
+	char tmp_str[21];
+
+	show [20]='\0';
+	
+
+	time( &t ); 
+  	tmp = localtime( &t );
+	
+	memset (show,' ',20);
+	strftime(tmp_str, sizeof(tmp_str), "%d.%m.%Y", tmp); 
+	//strncpy (show, tmp_str, strlen(tmp_str));
+	strncpy (&show[(20 - strlen(tmp_str))/2], tmp_str, strlen(tmp_str));
+	home_scr();
+	print_to_scr (show);
+
+	memset (show,' ',20);
+	strftime(tmp_str, sizeof(tmp_str), "%H:%M:%S", tmp); 
+	//strncpy (show, tmp_str, strlen(tmp_str));
+	strncpy (&show[(20 - strlen(tmp_str))/2], tmp_str, strlen(tmp_str));
+	set_to_position_scr(1, 2);
+	print_to_scr (show);
+}
 
 void show_current_track(output_t * output_st) {
 		/*
@@ -162,6 +189,7 @@ int main() {
 
 	int count_click = 0;
 	struct timeval t_start, t_end;
+	int show_time = 0;
 	while (1) {
 		get_all (output_st);
 		int ret_read = read_com(encoder_fd, 1 , 100, &chout);
@@ -180,6 +208,11 @@ int main() {
 			} else {
 				if (usec_used (&t_start, &t_end) <= 500000) {
 					double_click_button();
+					if (show_time) {
+						show_time--;
+					} else {
+						show_time++;
+					}
 				} 
 				count_click = 0;
 			}
@@ -202,7 +235,11 @@ int main() {
 			}
 		}
 		if ((action) && ((current_time-last_time)>0)) {
-			show_current_track(output_st);
+			if (!show_time) {
+				show_current_track(output_st);
+			} else {
+				show_current_time_and_date();
+			}
 			last_time = current_time; 
 		}
 	}
