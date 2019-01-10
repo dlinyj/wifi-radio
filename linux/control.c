@@ -40,14 +40,12 @@ void show_current_time_and_date (void) {
 	
 	memset (show,' ',20);
 	strftime(tmp_str, sizeof(tmp_str), "%d.%m.%Y", tmp); 
-	//strncpy (show, tmp_str, strlen(tmp_str));
 	strncpy (&show[(20 - strlen(tmp_str))/2], tmp_str, strlen(tmp_str));
 	home_scr();
 	print_to_scr (show);
 
 	memset (show,' ',20);
 	strftime(tmp_str, sizeof(tmp_str), "%H:%M:%S", tmp); 
-	//strncpy (show, tmp_str, strlen(tmp_str));
 	strncpy (&show[(20 - strlen(tmp_str))/2], tmp_str, strlen(tmp_str));
 	set_to_position_scr(1, 2);
 	print_to_scr (show);

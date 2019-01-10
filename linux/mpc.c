@@ -120,6 +120,7 @@ void get_all (output_t * output_st) {
 
 output_t * init_output_st (void ){
 	static output_t output_st = {0};
+
 	memset(output_st.title, '\0', BUF_SIZE-1);
 	memset(output_st.name, '\0', BUF_SIZE-1);
 	memset(output_st.artist, '\0', BUF_SIZE-1);
